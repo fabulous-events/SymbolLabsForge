@@ -1,0 +1,1 @@
+# FORGE-ROADMAP\n\nThis document tracks the milestones and progress for the SymbolLabsForge project.\n\n## Phase 1: Scaffolding & Porting (Complete)\n\n## Phase 2: Internal Validation & Skeletonization (In Progress)\n\n## Phase 3: Formalize as a Dependency\n\n## Phase 4: Build Forge UI Tool\n

@@ -1,0 +1,27 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- NuGet Package Metadata -->
+    <PackageId>SymbolLabs.Forge</PackageId>
+    <Version>1.6.0</Version>
+    <Authors>SymbolLabs</Authors>
+    <RepositoryUrl>https://github.com/symbollabs/SymbolLabsForge</RepositoryUrl>
+    <PackageTags>symbol-generation;validation;governance;capsule</PackageTags>
+    <Description>A robust, standalone, governance-grade library for generating, validating, and exporting synthetic musical symbols.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Scrutor" Version="6.1.0" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SymbolLabsForge.Contracts\SymbolLabsForge.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

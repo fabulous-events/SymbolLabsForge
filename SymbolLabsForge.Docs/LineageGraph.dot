@@ -1,0 +1,9 @@
+digraph CapsuleLineage {
+  rankdir=LR;
+  node [shape=box, style=rounded];
+  "flat_handwritten" [label="Flat\n(Handwritten)\nFactor: 0.0"];
+  "flat_typeset" [label="Flat\n(Typeset)\nFactor: 1.0"];
+  "flat_morph_0.5" [label="Flat\n(Morph)\nFactor: 0.5"];
+  "flat_handwritten" -> "flat_morph_0.5" [label="Morph\nPhase5"];
+  "flat_typeset" -> "flat_morph_0.5" [label="Morph\nPhase5"];
+}
