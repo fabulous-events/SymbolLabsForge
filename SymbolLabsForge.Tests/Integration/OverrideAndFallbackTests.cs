@@ -1,29 +1,38 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SymbolLabsForge.Contracts;
 using SixLabors.ImageSharp;
 using System.Collections.Generic;
 using System.Linq;
+using Xunit;
+using System;
+using Microsoft.Extensions.Configuration;
 
 namespace SymbolLabsForge.Tests.Integration
 {
-    [TestClass]
     public class OverrideAndFallbackTests
     {
         private readonly IServiceProvider _serviceProvider;
+        private readonly ISymbolForge _symbolForge;
 
         public OverrideAndFallbackTests()
         {
             var services = new ServiceCollection();
             services.AddLogging(builder => builder.AddConsole());
-            services.AddSymbolForge();
+
+            // Create a mock configuration
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string>())
+                .Build();
+
+            services.AddSymbolForge(configuration);
             _serviceProvider = services.BuildServiceProvider();
+            _symbolForge = _serviceProvider.GetRequiredService<ISymbolForge>();
         }
 
-        [TestMethod]
-        [TestCategory("Override")]
-        [TestCategory("Phase2.17")]
+        [Fact]
+        [Trait("Category", "Override")]
+        [Trait("AuditTag", "Phase2.17")]
         public void Generate_WithValidatorOverride_BypassesValidationAndLogsOverride()
         {
             // Arrange
@@ -43,9 +52,9 @@ namespace SymbolLabsForge.Tests.Integration
             var capsuleSet = symbolForge.Generate(request);
 
             // Assert
-            Assert.IsNotNull(capsuleSet);
-            Assert.IsTrue(capsuleSet.Primary.IsValid); // Should be true because the failing validator was overridden
-            Assert.IsTrue(capsuleSet.Primary.ValidationResults.Any(vr => vr.ValidatorName == "Density Validator" && vr.FailureMessage.Contains("Overridden")));
+            Assert.NotNull(capsuleSet);
+            Assert.True(capsuleSet.Primary.IsValid); // Should be true because the failing validator was overridden
+            Assert.Contains(capsuleSet.Primary.ValidationResults, vr => vr.ValidatorName == "Density Validator" && vr.FailureMessage.Contains("Overridden"));
         }
     }
 }

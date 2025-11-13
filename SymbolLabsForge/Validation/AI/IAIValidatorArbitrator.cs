@@ -4,6 +4,6 @@ namespace SymbolLabsForge.Validation.AI
 {
     public interface IAIValidatorArbitrator
     {
-        ArbitrationResult Arbitrate(SymbolCapsule capsule, ValidationResult claudeResult, ValidationResult vortexResult);
+        ValidationResult Arbitrate(SymbolCapsule capsule, ValidationResult claudeResult, ValidationResult vortexResult);
     }
 }

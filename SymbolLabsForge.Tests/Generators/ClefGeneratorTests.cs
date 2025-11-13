@@ -1,18 +1,17 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SymbolLabsForge.Generators;
 using SymbolLabsForge.Utils;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
+using Xunit;
 
 namespace SymbolLabsForge.Tests.Generators
 {
-    [TestClass]
     public class ClefGeneratorTests
     {
         private readonly ClefGenerator _generator = new ClefGenerator();
 
-        [TestMethod]
+        [Fact]
         public void GenerateRawImage_WithValidDimensions_ReturnsImageOfCorrectSize()
         {
             // Arrange
@@ -22,12 +21,12 @@ namespace SymbolLabsForge.Tests.Generators
             using var image = _generator.GenerateRawImage(dimensions, null);
 
             // Assert
-            Assert.IsNotNull(image);
-            Assert.AreEqual(dimensions.Width, image.Width);
-            Assert.AreEqual(dimensions.Height, image.Height);
+            Assert.NotNull(image);
+            Assert.Equal(dimensions.Width, image.Width);
+            Assert.Equal(dimensions.Height, image.Height);
         }
 
-        [TestMethod]
+        [Fact]
         public void GenerateRawImage_MatchesVerifiedSnapshot()
         {
             // Arrange
@@ -41,8 +40,10 @@ namespace SymbolLabsForge.Tests.Generators
             // Assert
             if (!File.Exists(snapshotPath))
             {
+                // First run: save the generated image as the snapshot
+                Directory.CreateDirectory(Path.GetDirectoryName(snapshotPath));
                 actualImage.Save(snapshotPath);
-                Assert.IsTrue(true, $"Snapshot created at {snapshotPath}. Please verify it manually.");
+                Assert.True(true, $"Snapshot created at {snapshotPath}. Please verify it manually.");
                 return;
             }
 
@@ -54,7 +55,7 @@ namespace SymbolLabsForge.Tests.Generators
                 ImageDiffGenerator.SaveDiff(expectedImage, actualImage, diffPath);
             }
 
-            Assert.IsTrue(areSimilar, $"Image mismatch. See diff image for details: {diffPath}");
+            Assert.True(areSimilar, $"Image mismatch. See diff image for details: {diffPath}");
         }
     }
 }

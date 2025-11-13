@@ -12,7 +12,7 @@ using SymbolLabsForge.Validation;
 
 namespace SymbolLabsForge
 {
-    public class SymbolForge : ISymbolForge
+    internal class SymbolForge : ISymbolForge
     {
         private readonly IEnumerable<ISymbolGenerator> _generators;
         private readonly IEnumerable<IValidator> _validators;
@@ -163,7 +163,6 @@ namespace SymbolLabsForge
 
             // ... (processing steps remain the same)
             Image<L8> binarizedImage = rawImage.CloneAs<L8>();
-            binarizedImage.Mutate(ctx => ctx.BinaryThreshold(0.5f));
             Image<L8> finalImage = request.OutputForms.Contains(OutputForm.Skeletonized)
                 ? skeletonizationProcessor.Process(binarizedImage.Clone())
                 : binarizedImage;

@@ -1,13 +1,12 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SymbolLabsForge.Generators;
 using SixLabors.ImageSharp;
+using Xunit;
 
 namespace SymbolLabsForge.Tests.Generators
 {
-    [TestClass]
     public class StackedGeneratorTests
     {
-        [TestMethod]
+        [Fact]
         public void GenerateRawImage_WithValidDimensions_ReturnsImageOfCorrectSize()
         {
             // Arrange
@@ -18,9 +17,9 @@ namespace SymbolLabsForge.Tests.Generators
             using var image = generator.GenerateRawImage(dimensions, null);
 
             // Assert
-            Assert.IsNotNull(image);
-            Assert.AreEqual(dimensions.Width, image.Width);
-            Assert.AreEqual(dimensions.Height, image.Height);
+            Assert.NotNull(image);
+            Assert.Equal(dimensions.Width, image.Width);
+            Assert.Equal(dimensions.Height, image.Height);
         }
     }
 }

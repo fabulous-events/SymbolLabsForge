@@ -1,4 +1,3 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SymbolLabsForge.Services;
 using SymbolLabsForge.Contracts;
 using System.IO;
@@ -7,13 +6,13 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using Xunit;
 
 namespace SymbolLabsForge.Tests.Registry
 {
-    [TestClass]
     public class CapsuleRegistryManagerTests
     {
-        [TestMethod]
+        [Fact]
         public async Task AddEntryAsync_AddsNewEntry_ToEmptyRegistry()
         {
             // Arrange
@@ -29,8 +28,8 @@ namespace SymbolLabsForge.Tests.Registry
                 // Assert
                 var jsonContent = await File.ReadAllTextAsync(tempFile);
                 var registry = JsonConvert.DeserializeObject<CapsuleRegistry>(jsonContent);
-                Assert.AreEqual(1, registry.Capsules.Count);
-                Assert.AreEqual("id-1", registry.Capsules[0].CapsuleId);
+                Assert.Single(registry.Capsules);
+                Assert.Equal("id-1", registry.Capsules[0].CapsuleId);
             }
             finally
             {
@@ -38,7 +37,7 @@ namespace SymbolLabsForge.Tests.Registry
             }
         }
 
-        [TestMethod]
+        [Fact]
         public async Task AddEntryAsync_DoesNotAddDuplicateEntry()
         {
             // Arrange
@@ -56,7 +55,7 @@ namespace SymbolLabsForge.Tests.Registry
                 // Assert
                 var jsonContent = await File.ReadAllTextAsync(tempFile);
                 var registry = JsonConvert.DeserializeObject<CapsuleRegistry>(jsonContent);
-                Assert.AreEqual(1, registry.Capsules.Count); // Should still be 1
+                Assert.Single(registry.Capsules); // Should still be 1
             }
             finally
             {

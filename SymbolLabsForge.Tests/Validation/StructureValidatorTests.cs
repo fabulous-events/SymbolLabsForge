@@ -1,60 +1,92 @@
-using Xunit;
-using SymbolLabsForge.Validation;
-using SymbolLabsForge.Contracts;
+//===============================================================
+// File: StructureValidatorTests.cs
+// Author: Gemini
+// Date: 2025-11-12
+// Purpose: Contains unit tests for the StructureValidator.
+//===============================================================
+#nullable enable
+
 using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.PixelFormats;
+using SymbolLabsForge.Contracts;
+using SymbolLabsForge.Validation;
+using Xunit;
 using System.Collections.Generic;
+
+using SixLabors.ImageSharp.Drawing;
+using SixLabors.ImageSharp.Drawing.Processing;
 
 namespace SymbolLabsForge.Tests.Validation
 {
     public class StructureValidatorTests
     {
-        // A simple implementation for testing purposes. A real one would be more complex.
-        private class TestableStructureValidator : IValidator
-        {
-            public string Name => "Testable Structure Validator";
-            public ValidationResult Validate(SymbolCapsule capsule, QualityMetrics metrics)
-            {
-                bool hasContent = false;
-                capsule.TemplateImage.ProcessPixelRows(accessor =>
-                {
-                    for (int y = 0; y < accessor.Height; y++)
-                    {
-                        foreach (var pixel in accessor.GetRowSpan(y))
-                        {
-                            if (pixel.PackedValue < 255) // Found a non-white pixel
-                            {
-                                hasContent = true;
-                                return;
-                            }
-                        }
-                    }
-                });
+        private readonly StructureValidator _validator = new();
+        private readonly QualityMetrics _metrics = new();
 
-                if (hasContent) return new ValidationResult(true, Name);
-                return new ValidationResult(false, Name, "Image canvas is empty.");
-            }
+        private Image<L8> CreateTestImage(bool isEmpty)
+        {
+            var image = new Image<L8>(100, 100);
+            image.Mutate(ctx => {
+                ctx.Clear(Color.White);
+                if (!isEmpty)
+                {
+                    ctx.Fill(Color.Black, new SixLabors.ImageSharp.Drawing.RectangularPolygon(25, 25, 50, 50));
+                }
+            });
+            return image;
         }
 
         [Fact]
-        [Trait("Category", "Validator")]
-        [Trait("AuditTag", "Phase2.12")]
+        public void Validate_WithValidSymbol_ReturnsPass()
+        {
+            // Arrange
+            using var image = CreateTestImage(false);
+            var capsule = new SymbolCapsule(image, new TemplateMetadata(), _metrics, false, new List<ValidationResult>());
+
+            // Act
+            var result = _validator.Validate(capsule, _metrics);
+
+            // Assert
+            Assert.True(result.IsValid);
+        }
+
+        [Fact]
         public void Validate_WithEmptyImage_ReturnsFail()
         {
             // Arrange
-            var validator = new TestableStructureValidator();
-            using var image = new Image<L8>(10, 10);
-            image.Mutate(ctx => ctx.BackgroundColor(Color.White)); // All white
-            var capsule = new SymbolCapsule(image, new TemplateMetadata(), new QualityMetrics(), true, new List<ValidationResult>());
-            var metrics = new QualityMetrics();
+            using var image = CreateTestImage(true);
+            var capsule = new SymbolCapsule(image, new TemplateMetadata(), _metrics, false, new List<ValidationResult>());
 
             // Act
-            var result = validator.Validate(capsule, metrics);
+            var result = _validator.Validate(capsule, _metrics);
 
             // Assert
             Assert.False(result.IsValid);
             Assert.Equal("Image canvas is empty.", result.FailureMessage);
+        }
+
+        [Fact]
+        public void Validate_WithNullImage_ReturnsFail()
+        {
+            // Arrange
+            var capsule = new SymbolCapsule(null, new TemplateMetadata(), _metrics, false, new List<ValidationResult>());
+
+            // Act
+            var result = _validator.Validate(capsule, _metrics);
+
+            // Assert
+            Assert.False(result.IsValid);
+        }
+
+        [Fact]
+        public void Validate_WithNullCapsule_ReturnsFail()
+        {
+            // Act
+            var result = _validator.Validate(null, _metrics);
+
+            // Assert
+            Assert.False(result.IsValid);
         }
     }
 }

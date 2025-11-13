@@ -1,53 +1,63 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SymbolLabsForge;
+using System;
+using System.IO;
+using Microsoft.Extensions.Configuration;
 using SymbolLabsForge.Contracts;
-using SymbolLabsForge.Utils;
-using Newtonsoft.Json;
 using System.CommandLine;
+using Newtonsoft.Json;
+using SymbolLabsForge.Validator;
 
 class Program
 {
-    static async Task<int> Main(string[] args)
-    {
-        var serviceProvider = new ServiceCollection()
-            .AddLogging(builder => builder.AddConsole().SetMinimumLevel(LogLevel.Warning))
-            .AddSymbolForge()
-            .BuildServiceProvider();
-
-
-        var rootCommand = new RootCommand("SymbolLabsForge Capsule Validator");
-
-        var capsuleArgument = new Argument<FileInfo>(
-            name: "capsule",
-            description: "Path to the capsule's .json file.").ExistingOnly();
-
-        rootCommand.AddArgument(capsuleArgument);
-
-        var aiAssistOption = new Option<bool>(
-            name: "--ai-assist",
-            description: "Enable AI-assisted validation arbitration.",
-            getDefaultValue: () => false);
-
-        rootCommand.AddOption(aiAssistOption);
-
-        rootCommand.SetHandler(async (fileInfo, aiAssist) =>
-        {
-            if (aiAssist)
+            static async Task<int> Main(string[] args)
             {
-                var arbitrator = serviceProvider.GetRequiredService<SymbolLabsForge.Validation.AI.IAIValidatorArbitrator>();
-                await AidedValidation(arbitrator, fileInfo.FullName);
+                var services = new ServiceCollection();
+    
+                // Build configuration
+                var configuration = new ConfigurationBuilder()
+                    .SetBasePath(Directory.GetCurrentDirectory())
+                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                    .Build();
+    
+                services.AddLogging(builder => builder.AddConsole());
+                services.AddSymbolForge(configuration);
+                services.AddTransient<SymbolLabsForge.Validation.AI.IAIValidatorArbitrator, SymbolLabsForge.Validation.AI.SimpleArbitrator>();
+    
+                var serviceProvider = services.BuildServiceProvider();
+    
+                var rootCommand = new RootCommand("SymbolLabsForge Capsule Validator");
+    
+                var capsuleArgument = new Argument<FileInfo>(
+                    name: "capsule",
+                    description: "Path to the capsule's .json file.").ExistingOnly();
+    
+                rootCommand.AddArgument(capsuleArgument);
+    
+                var aiAssistOption = new Option<bool>(
+                    name: "--ai-assist",
+                    description: "Enable AI-assisted validation arbitration.",
+                    getDefaultValue: () => false);
+    
+                rootCommand.AddOption(aiAssistOption);
+    
+                rootCommand.SetHandler(async (fileInfo, aiAssist) =>
+                {
+                    if (aiAssist)
+                    {
+                        var arbitrator = serviceProvider.GetRequiredService<SymbolLabsForge.Validation.AI.IAIValidatorArbitrator>();
+                        await AidedValidation(arbitrator, fileInfo.FullName);
+                    }
+                    else
+                    {
+                        var forge = serviceProvider.GetRequiredService<ISymbolForge>();
+                        await ValidateCapsule(forge, fileInfo.FullName);
+                    }
+                }, capsuleArgument, aiAssistOption);
+    
+                return await rootCommand.InvokeAsync(args);
             }
-            else
-            {
-                var forge = serviceProvider.GetRequiredService<ISymbolForge>();
-                await ValidateCapsule(forge, fileInfo.FullName);
-            }
-        }, capsuleArgument, aiAssistOption);
-
-        return await rootCommand.InvokeAsync(args);
-    }
-
     private static async Task AidedValidation(SymbolLabsForge.Validation.AI.IAIValidatorArbitrator arbitrator, string capsulePath)
     {
         Console.WriteLine($"--- AI-Assisted Validation for: {capsulePath} ---");

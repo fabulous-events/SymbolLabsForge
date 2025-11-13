@@ -63,11 +63,83 @@ namespace SymbolLabsForge.Tests.Validation
             Assert.Equal(15.0, metrics.Density, 2);
         }
 
+        [Fact]
+        public void Validate_WithDensityJustBelowMinThreshold_ReturnsFail()
+        {
+            // Arrange (4.9% density)
+            using var image = CreateTestImage(100, 100, 490);
+            var capsule = CreateTestCapsule(image);
+            var metrics = new QualityMetrics();
+
+            // Act
+            var result = _validator.Validate(capsule, metrics);
+
+            // Assert
+            Assert.False(result.IsValid);
+            Assert.Equal(DensityStatus.TooLow, metrics.DensityStatus);
+        }
+
+        [Fact]
+        public void Validate_WithDensityAtMinThreshold_ReturnsPass()
+        {
+            // Arrange (5.0% density)
+            using var image = CreateTestImage(100, 100, 500);
+            var capsule = CreateTestCapsule(image);
+            var metrics = new QualityMetrics();
+
+            // Act
+            var result = _validator.Validate(capsule, metrics);
+
+            // Assert
+            Assert.True(result.IsValid);
+            Assert.Equal(DensityStatus.Valid, metrics.DensityStatus);
+        }
+
+        [Fact]
+        public void Validate_WithDensityAtMaxThreshold_ReturnsPass()
+        {
+            // Arrange (12.0% density)
+            using var image = CreateTestImage(100, 100, 1200);
+            var capsule = CreateTestCapsule(image);
+            var metrics = new QualityMetrics();
+
+            // Act
+            var result = _validator.Validate(capsule, metrics);
+
+            // Assert
+            Assert.True(result.IsValid);
+            Assert.Equal(DensityStatus.Valid, metrics.DensityStatus);
+        }
+
+        [Fact]
+        public void Validate_WithDensityJustAboveMaxThreshold_ReturnsFail()
+        {
+            // Arrange (12.1% density)
+            using var image = CreateTestImage(100, 100, 1210);
+            var capsule = CreateTestCapsule(image);
+            var metrics = new QualityMetrics();
+
+            // Act
+            var result = _validator.Validate(capsule, metrics);
+
+            // Assert
+            Assert.False(result.IsValid);
+            Assert.Equal(DensityStatus.TooHigh, metrics.DensityStatus);
+        }
+
         private Image<L8> CreateTestImage(int width, int height, int blackPixelCount)
         {
             var image = new Image<L8>(width, height);
-            image.Mutate(ctx => ctx.BackgroundColor(Color.White));
-            
+            // Start with a completely white canvas.
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    image[x, y] = new L8(255); // White pixel
+                }
+            }
+
+            // Now, add the specified number of black pixels from the top-left.
             int count = 0;
             for (int y = 0; y < height && count < blackPixelCount; y++)
             {
@@ -81,8 +153,8 @@ namespace SymbolLabsForge.Tests.Validation
         }
 
         [Theory]
-        [InlineData(0, DensityStatus.TooLow)] // All white image should have 0% density
         [InlineData(10000, DensityStatus.TooHigh)] // All black image should have 100% density
+        [InlineData(0, DensityStatus.TooLow)] // All white image should have 0% density
         public void Validate_WithEdgeCaseImages_ReturnsCorrectStatus(int blackPixelCount, DensityStatus expectedStatus)
         {
             // Arrange
@@ -102,8 +174,7 @@ namespace SymbolLabsForge.Tests.Validation
         public void Validate_WithEmptyImage_FailsGracefully()
         {
             // Arrange
-            using var image = new Image<L8>(1, 1); // 1x1 empty image
-            image.Mutate(ctx => ctx.BackgroundColor(Color.White));
+            using var image = CreateTestImage(1, 1, 0); // 1x1 empty image with 0 black pixels
             var capsule = CreateTestCapsule(image);
             var metrics = new QualityMetrics();
 

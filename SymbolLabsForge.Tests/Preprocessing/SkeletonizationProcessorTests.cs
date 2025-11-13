@@ -1,11 +1,10 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Xunit;
 
 namespace SymbolLabsForge.Tests.Preprocessing
 {
-    [TestClass]
     public class SkeletonizationProcessorTests
     {
-        [TestMethod]
+        [Fact]
         public void Test1()
         {
             // Placeholder

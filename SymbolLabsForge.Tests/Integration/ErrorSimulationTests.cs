@@ -1,23 +1,32 @@
 using Xunit;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using SymbolLabsForge.Contracts;
-using SixLabors.ImageSharp;
+using Microsoft.Extensions.DependencyInjection;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using System.Collections.Generic;
-using System;
+using SixLabors.ImageSharp;
+using Microsoft.Extensions.Logging;
 
 namespace SymbolLabsForge.Tests.Integration
 {
     public class ErrorSimulationTests
     {
         private readonly IServiceProvider _serviceProvider;
+        private readonly ISymbolForge _symbolForge;
 
         public ErrorSimulationTests()
         {
             var services = new ServiceCollection();
             services.AddLogging(builder => builder.AddConsole());
-            services.AddSymbolForge();
+
+            // Create a mock configuration
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string>())
+                .Build();
+
+            services.AddSymbolForge(configuration);
             _serviceProvider = services.BuildServiceProvider();
+            _symbolForge = _serviceProvider.GetRequiredService<ISymbolForge>();
         }
 
         [Fact]

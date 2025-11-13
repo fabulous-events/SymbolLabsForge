@@ -1,13 +1,4 @@
-//===============================================================
-// File: SymbolForgeTests.cs
-// Author: Gemini
-// Date: 2025-11-11
-// Purpose: Unit tests for the SymbolForge class.
-//===============================================================
-#nullable enable
-
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SymbolLabsForge.Contracts;
@@ -17,10 +8,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using SymbolLabsForge.Utils;
+using Xunit;
+using System.Threading.Tasks;
 
 namespace SymbolLabsForge.Tests
 {
-    [TestClass]
     public class SymbolForgeTests
     {
         private class MockSymbolGenerator : ISymbolGenerator
@@ -59,10 +51,9 @@ namespace SymbolLabsForge.Tests
             }
         }
 
-        private SymbolForge _forge = null!;
+        private readonly SymbolForge _forge;
 
-        [TestInitialize]
-        public void Setup()
+        public SymbolForgeTests()
         {
             var generators = new[] { new MockSymbolGenerator() };
             var validators = new[] { new MockValidator() };
@@ -73,7 +64,7 @@ namespace SymbolLabsForge.Tests
             _forge = new SymbolForge(generators, validators, skeletonizationProcessor, morphEngine, logger);
         }
 
-        [TestMethod]
+        [Fact]
         public void Generate_WithSingleDimension_ReturnsPrimaryCapsule()
         {
             // Arrange
@@ -86,11 +77,11 @@ namespace SymbolLabsForge.Tests
             var result = _forge.Generate(request);
 
             // Assert
-            Assert.IsNotNull(result.Primary);
-            Assert.AreEqual(0, result.Variants.Count);
+            Assert.NotNull(result.Primary);
+            Assert.Empty(result.Variants);
         }
 
-        [TestMethod]
+        [Fact]
         public void Generate_WithMultipleDimensions_ReturnsPrimaryAndVariants()
         {
             // Arrange
@@ -103,11 +94,11 @@ namespace SymbolLabsForge.Tests
             var result = _forge.Generate(request);
 
             // Assert
-            Assert.IsNotNull(result.Primary);
-            Assert.AreEqual(1, result.Variants.Count);
+            Assert.NotNull(result.Primary);
+            Assert.Single(result.Variants);
         }
 
-        [TestMethod]
+        [Fact]
         public void Generate_WithEdgeCases_ReturnsEdgeCaseVariants()
         {
             // Arrange
@@ -121,12 +112,12 @@ namespace SymbolLabsForge.Tests
             var result = _forge.Generate(request);
 
             // Assert
-            Assert.IsNotNull(result.Primary);
-            Assert.AreEqual(1, result.Variants.Count);
-            Assert.IsTrue(result.Variants.First().Metadata.TemplateName.Contains("edge_Rotated"));
+            Assert.NotNull(result.Primary);
+            Assert.Single(result.Variants);
+            Assert.Contains("edge_Rotated", result.Variants.First().Metadata.TemplateName);
         }
 
-        [TestMethod]
+        [Fact]
         public void Generate_ComputesCorrectHash()
         {
             // Arrange
@@ -144,7 +135,7 @@ namespace SymbolLabsForge.Tests
             var imageBytes = ms.ToArray();
             var expectedHash = HashUtil.ComputeSha256(imageBytes);
 
-            Assert.AreEqual(expectedHash, result.Primary.Metadata.TemplateHash);
+            Assert.Equal(expectedHash, result.Primary.Metadata.TemplateHash);
         }
     }
 }

@@ -1,20 +1,11 @@
-//===============================================================
-// File: TemplateMetadataTests.cs
-// Author: Gemini
-// Date: 2025-11-11
-// Purpose: Unit tests for the TemplateMetadata record.
-//===============================================================
-#nullable enable
-
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SymbolLabsForge.Contracts;
+using Xunit;
 
 namespace SymbolLabsForge.Tests.Contracts
 {
-    [TestClass]
     public class TemplateMetadataTests
     {
-        [TestMethod]
+        [Fact]
         public void WithKeyword_CreatesNewInstanceWithModifiedProperty()
         {
             // Arrange
@@ -24,9 +15,9 @@ namespace SymbolLabsForge.Tests.Contracts
             var modified = original with { TemplateName = "modified" };
 
             // Assert
-            Assert.AreNotSame(original, modified);
-            Assert.AreEqual("original", original.TemplateName);
-            Assert.AreEqual("modified", modified.TemplateName);
+            Assert.NotSame(original, modified);
+            Assert.Equal("original", original.TemplateName);
+            Assert.Equal("modified", modified.TemplateName);
         }
     }
 }

@@ -1,4 +1,3 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SymbolLabsForge.Utils;
 using System.Threading.Tasks;
 using System.IO;
@@ -7,15 +6,15 @@ using SixLabors.ImageSharp.PixelFormats;
 using SymbolLabsForge.Contracts;
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using Xunit;
 
 namespace SymbolLabsForge.Tests.Integration
 {
-    [TestClass]
     public class ReplayTests
     {
-        [TestMethod]
-        [TestCategory("Replay")]
-        [TestCategory("Phase2.18")]
+        [Fact]
+        [Trait("Category", "Replay")]
+        [Trait("AuditTag", "Phase2.18")]
         public async Task CanLoadCapsuleAndReproduceResult()
         {
             // Arrange: Create a temporary capsule on disk to simulate a real artifact
@@ -40,9 +39,9 @@ namespace SymbolLabsForge.Tests.Integration
                 var (loadedCapsule, request) = await CapsuleLoader.LoadFromFileAsync(jsonPath);
 
                 // Assert: The loaded capsule's image matches the original
-                Assert.IsNotNull(loadedCapsule);
-                Assert.IsNotNull(request);
-                Assert.IsTrue(SnapshotComparer.AreSimilar(originalImage, loadedCapsule.TemplateImage));
+                Assert.NotNull(loadedCapsule);
+                Assert.NotNull(request);
+                Assert.True(SnapshotComparer.AreSimilar(originalImage, loadedCapsule.TemplateImage));
             }
             finally
             {

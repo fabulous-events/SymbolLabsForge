@@ -39,6 +39,12 @@ namespace SymbolLabsForge.Validation
                 }
             });
 
+            if (blackPixelCount == 0)
+            {
+                metrics.DensityStatus = DensityStatus.TooLow;
+                return new ValidationResult(false, Name, "Image is completely white.");
+            }
+
             float density = blackPixelCount / (float)totalPixels;
             metrics.Density = density * 100; // Store as percentage
 
