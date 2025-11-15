@@ -36,8 +36,15 @@ public static class Program
         });
 
         services.AddSymbolForge(configuration);
-        services.Configure<ForgePathSettings>(configuration.GetSection(ForgePathSettings.SectionName));
-        services.Configure<AssetSettings>(configuration.GetSection("AssetSettings"));
+
+        // CONFIGURATION VALIDATION (Phase 3):
+        // ForgePathSettings registration with fail-fast validation.
+        // Note: AssetSettings is already registered in AddSymbolForge() - no duplicate needed.
+        services.AddOptions<ForgePathSettings>()
+            .Bind(configuration.GetSection(ForgePathSettings.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddTransient<CapsuleExporter>();
         services.AddSingleton<IAssetPathProvider, AssetPathProvider>();
         services.AddSingleton<CapsuleRegistryManager>();
@@ -45,12 +52,11 @@ public static class Program
         IServiceProvider serviceProvider = services.BuildServiceProvider();
         ILogger logger = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Program");
 
-        ForgePathSettings forgePaths = serviceProvider.GetService<IOptions<ForgePathSettings>>()?.Value ?? new ForgePathSettings();
-
-        if (string.IsNullOrWhiteSpace(forgePaths.SolutionRoot) || !Directory.Exists(forgePaths.SolutionRoot))
-        {
-            logger.LogWarning("SolutionRoot not configured or missing; some commands may fail.");
-        }
+        // CONFIGURATION VALIDATION (Phase 3):
+        // ForgePathSettings is now validated at startup via .ValidateOnStart().
+        // If SolutionRoot or DocsRoot are missing, BuildServiceProvider() will throw.
+        // No need for manual null check - validation is enforced by [Required] attributes.
+        ForgePathSettings forgePaths = serviceProvider.GetRequiredService<IOptions<ForgePathSettings>>().Value;
 
         var root = new RootCommand("SymbolLabsForge CLI - consolidated entrypoint");
 

@@ -3,6 +3,7 @@ using SymbolLabsForge.Services;
 using SymbolLabsForge.Contracts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Text.Json;
@@ -68,8 +69,15 @@ namespace SymbolLabsForge.Tests.Export
                 CapsuleId = id,
                 TemplateHash = hash,
                 GeneratedBy = generatorVersion,
-                GeneratedOn = System.DateTime.UtcNow.ToString("o"),
-                SymbolType = SymbolType.Unknown
+                GeneratedOn = DateTime.UtcNow.ToString("o"),
+                SymbolType = SymbolType.Unknown,
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "test-source.png",
+                    Method = PreprocessingMethod.Raw,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = "TestRunner"
+                }
             };
             var metrics = new QualityMetrics
             {

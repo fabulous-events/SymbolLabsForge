@@ -3,7 +3,7 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SymbolLabsForge.Contracts;
-using SymbolLabsForge.Preprocessing;
+using SymbolLabsForge.ImageProcessing.Utilities;
 using SymbolLabsForge.Generation;
 using System.Reflection;
 using SymbolLabsForge.Utils;
@@ -44,14 +44,26 @@ namespace SymbolLabsForge
               ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
               ?.InformationalVersion ?? "0.0.0-local";
 
+            // Compute hash from morphed image for integrity
+            var computedHash = CanonicalHashProvider.ComputeSha256(morphedImage);
+
             var metadata = new TemplateMetadata
             {
                 TemplateName = $"{request.Type}_morph_{request.FromStyle}_to_{request.ToStyle}",
                 GeneratedBy = $"SymbolLabsForge v{version}", // Should be dynamic
+                TemplateHash = computedHash,
                 SymbolType = request.Type,
                 MorphLineage = $"{request.Type}:{request.FromStyle} -> {request.Type}:{request.ToStyle}",
                 InterpolationFactor = request.InterpolationFactor,
-                AuditTag = "Phase5"
+                AuditTag = "Phase5",
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = $"{request.FromStyle} + {request.ToStyle}",
+                    Method = PreprocessingMethod.Custom,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = $"SymbolLabsForge v{version}",
+                    Notes = $"Morphed interpolation (factor: {request.InterpolationFactor})"
+                }
             };
 
             TemplateValidator.ValidateMetadata(metadata);
@@ -184,12 +196,25 @@ namespace SymbolLabsForge
                 : binarizedImage;
 
             // 4. Create Metadata and Metrics
+            var version = Assembly.GetEntryAssembly()
+              ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+              ?.InformationalVersion ?? "0.0.0-local";
+
             var metadata = new TemplateMetadata
             {
                 TemplateName = $"{request.Type}_{dimensions.Width}x{dimensions.Height}",
-                GeneratedBy = "SymbolLabsForge",
+                GeneratedBy = $"SymbolLabsForge v{version}",
+                TemplateHash = "pending-computation", // Will be updated after hash computation
                 GenerationSeed = request.GenerationSeed,
-                SymbolType = request.Type
+                SymbolType = request.Type,
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "synthetic-generation",
+                    Method = request.OutputForms.Contains(OutputForm.Skeletonized) ? PreprocessingMethod.Skeletonized : PreprocessingMethod.Binarized,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = $"SymbolLabsForge v{version}",
+                    Notes = $"Synthetically generated {request.Type} symbol"
+                }
             };
             TemplateValidator.ValidateMetadata(metadata);
             var metrics = new QualityMetrics
@@ -235,7 +260,25 @@ namespace SymbolLabsForge
 
         private SymbolCapsule CreateFallbackCapsule(SymbolRequest request, Size dimensions, string failureReason)
         {
-            var metadata = new TemplateMetadata { TemplateName = $"{request.Type}-fallback", SymbolType = request.Type };
+            var version = Assembly.GetEntryAssembly()
+              ?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+              ?.InformationalVersion ?? "0.0.0-local";
+
+            var metadata = new TemplateMetadata
+            {
+                TemplateName = $"{request.Type}-fallback",
+                GeneratedBy = $"SymbolLabsForge v{version}",
+                TemplateHash = "fallback-no-hash",
+                SymbolType = request.Type,
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "fallback-generation",
+                    Method = PreprocessingMethod.Raw,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = $"SymbolLabsForge v{version}",
+                    Notes = $"Fallback capsule due to generation failure: {failureReason}"
+                }
+            };
             TemplateValidator.ValidateMetadata(metadata);
             var metrics = new QualityMetrics { Width = dimensions.Width, Height = dimensions.Height };
             var validationResults = new List<ValidationResult> { new ValidationResult(false, "FallbackHandler", failureReason) };

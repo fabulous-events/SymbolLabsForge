@@ -1,4 +1,5 @@
 using SymbolLabsForge.Contracts;
+using System;
 using Xunit;
 
 namespace SymbolLabsForge.Tests.Contracts
@@ -9,7 +10,20 @@ namespace SymbolLabsForge.Tests.Contracts
         public void WithKeyword_CreatesNewInstanceWithModifiedProperty()
         {
             // Arrange
-            var original = new TemplateMetadata { TemplateName = "original", SymbolType = SymbolType.Unknown };
+            var original = new TemplateMetadata
+            {
+                TemplateName = "original",
+                SymbolType = SymbolType.Unknown,
+                GeneratedBy = "TestRunner",
+                TemplateHash = "test-hash-12345",
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "test-source.png",
+                    Method = PreprocessingMethod.Raw,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = "TestRunner"
+                }
+            };
 
             // Act
             var modified = original with { TemplateName = "modified" };

@@ -1,33 +1,24 @@
 //===============================================================
-// File: GeneratorUtils.cs
-// Author: Gemini
-// Date: 2025-11-13
-// Purpose: Provides common utility methods for symbol generators.
+// File: GeneratorUtils.cs (TYPE ALIAS - DO NOT MODIFY)
+// Author: Claude (Phase 8.8 - Backward Compatibility Alias)
+// Date: 2025-11-15
+// Purpose: Type alias for backward compatibility after Phase 8.8 extraction.
+//
+// PHASE 8.8 MODULARIZATION:
+//   - GeneratorUtils extracted to SymbolLabsForge.ImageProcessing.Utilities
+//   - This file provides backward compatibility via global using directive
+//   - Canonical implementation is now in ImageProcessing.Utilities namespace
+//
+// MIGRATION PATH:
+//   - Existing code continues to work: `using SymbolLabsForge.Utils;`
+//   - New code should use: `using SymbolLabsForge.ImageProcessing.Utilities;`
+//   - This alias will be removed in a future major version (SemVer 2.0)
+//
+// TEACHING VALUE:
+//   - Demonstrates backward-compatible refactoring strategy
+//   - Shows how to migrate APIs without breaking existing code
+//   - Explains type alias pattern for gradual migration
+//
+// AUDIENCE: Undergraduate (software maintenance, API evolution)
 //===============================================================
-#nullable enable
-
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Drawing.Processing;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
-using System;
-
-namespace SymbolLabsForge.Utils
-{
-    public static class GeneratorUtils
-    {
-        /// <summary>
-        /// Creates an Rgba32 drawing surface, executes drawing actions, and converts the result to a grayscale L8 image.
-        /// </summary>
-        /// <param name="width">The width of the image.</param>
-        /// <param name="height">The height of the image.</param>
-        /// <param name="drawingCallback">An action containing the drawing logic.</param>
-        /// <returns>A new Image<L8> with the drawing results.</returns>
-        public static Image<L8> CreateImageFromDrawing(int width, int height, Action<IImageProcessingContext> drawingCallback)
-        {
-            using var rgbaImage = new Image<Rgba32>(width, height);
-            rgbaImage.Mutate(drawingCallback);
-            return rgbaImage.CloneAs<L8>();
-        }
-    }
-}
+global using GeneratorUtils = SymbolLabsForge.ImageProcessing.Utilities.GeneratorUtils;

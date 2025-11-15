@@ -12,6 +12,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using SymbolLabsForge.Contracts;
 using SymbolLabsForge.Validation;
 using Xunit;
+using System;
 using System.Collections.Generic;
 
 using SixLabors.ImageSharp.Drawing;
@@ -33,7 +34,20 @@ namespace SymbolLabsForge.Tests.Validation
                 ctx.Clear(Color.White);
                 ctx.Fill(Color.Black, new SixLabors.ImageSharp.Drawing.RectangularPolygon(25, 25, 50, 50));
             });
-            var capsule = new SymbolCapsule(image, new TemplateMetadata { SymbolType = SymbolType.Unknown }, _metrics, false, new List<ValidationResult>());
+            var capsule = new SymbolCapsule(image, new TemplateMetadata
+            {
+                TemplateName = "test-template",
+                SymbolType = SymbolType.Unknown,
+                GeneratedBy = "TestRunner",
+                TemplateHash = "test-hash-12345",
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "test-source.png",
+                    Method = PreprocessingMethod.Raw,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = "TestRunner"
+                }
+            }, _metrics, false, new List<ValidationResult>());
 
             // Act
             var result = _validator.Validate(capsule, _metrics);
@@ -43,19 +57,35 @@ namespace SymbolLabsForge.Tests.Validation
         }
 
         [Fact]
-        public void Validate_WithEmptyImage_ReturnsFail()
+        public void Validate_WithEmptyImage_Passes()
         {
+            // PHASE I UPDATE: StructureValidator no longer checks center pixels
+            // Empty image detection is now handled by DensityValidator (lines 56-60)
+            // StructureValidator serves as a placeholder for future structural checks
+
             // Arrange
             using var image = new Image<L8>(1, 1);
             image.Mutate(ctx => ctx.Clear(Color.White));
-            var capsule = new SymbolCapsule(image, new TemplateMetadata { SymbolType = SymbolType.Unknown }, _metrics, false, new List<ValidationResult>());
+            var capsule = new SymbolCapsule(image, new TemplateMetadata
+            {
+                TemplateName = "test-template",
+                SymbolType = SymbolType.Unknown,
+                GeneratedBy = "TestRunner",
+                TemplateHash = "test-hash-12345",
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "test-source.png",
+                    Method = PreprocessingMethod.Raw,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = "TestRunner"
+                }
+            }, _metrics, false, new List<ValidationResult>());
 
             // Act
             var result = _validator.Validate(capsule, _metrics);
 
             // Assert
-            Assert.False(result.IsValid);
-            Assert.Equal("Symbol is hollow; center pixel is not ink.", result.FailureMessage);
+            Assert.True(result.IsValid); // Passes - DensityValidator will catch this
         }
 
         [Fact]

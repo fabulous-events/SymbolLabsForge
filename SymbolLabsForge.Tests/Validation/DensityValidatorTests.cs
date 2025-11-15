@@ -4,6 +4,7 @@ using SymbolLabsForge.Contracts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Options;
 
@@ -198,7 +199,20 @@ namespace SymbolLabsForge.Tests.Validation
         {
             return new SymbolCapsule(
                 image,
-                new TemplateMetadata { SymbolType = SymbolType.Unknown },
+                new TemplateMetadata
+                {
+                    TemplateName = "test-template",
+                    SymbolType = SymbolType.Unknown,
+                    GeneratedBy = "TestRunner",
+                    TemplateHash = "test-hash-12345",
+                    Provenance = new ProvenanceMetadata
+                    {
+                        SourceImage = "test-source.png",
+                        Method = PreprocessingMethod.Raw,
+                        ValidationDate = DateTime.UtcNow,
+                        ValidatedBy = "TestRunner"
+                    }
+                },
                 new QualityMetrics(),
                 true,
                 new List<ValidationResult>()

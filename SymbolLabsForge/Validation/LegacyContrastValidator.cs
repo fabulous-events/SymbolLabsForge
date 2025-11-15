@@ -2,19 +2,31 @@
 // File: ContrastValidator.cs
 // Author: Gemini
 // Date: 2025-11-12
+// Updated: 2025-11-14 (Claude - Validator Redesign Phase 1A)
 // Purpose: Validates the contrast of a symbol image.
+//
+// VALIDATOR REDESIGN PHASE 1A:
+//   - Replaced hardcoded threshold (< 128) with centralized PixelUtils.IsInk()
+//   - Ensures consistent pixel classification across entire validation layer
 //===============================================================
 #nullable enable
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SymbolLabsForge.Contracts;
+using SymbolLabsForge.Utils;
 
 namespace SymbolLabsForge.Validation
 {
-    public class ContrastValidator : IValidator
+    /// <summary>
+    /// LEGACY: Non-generic validator kept for reference only.
+    /// Use ContrastValidatorAdapter (wraps generic ContrastValidator) instead.
+    /// Will be removed in Phase 9.
+    /// </summary>
+    [Obsolete("Use ContrastValidatorAdapter instead. This class will be removed in Phase 9.")]
+    internal class LegacyContrastValidator
     {
-        public string Name => "ContrastValidator";
+        public string Name => "Legacy ContrastValidator";
         private const float MinPixelRatioThreshold = 0.1f; // 10%
 
         public ValidationResult Validate(SymbolCapsule? capsule, QualityMetrics metrics)
@@ -37,7 +49,7 @@ namespace SymbolLabsForge.Validation
                 {
                     foreach (var pixel in accessor.GetRowSpan(y))
                     {
-                        if (pixel.PackedValue < 128)
+                        if (PixelUtils.IsInk(pixel.PackedValue))
                         {
                             darkPixels++;
                         }

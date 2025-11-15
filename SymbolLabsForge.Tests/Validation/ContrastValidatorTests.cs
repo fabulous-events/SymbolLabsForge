@@ -11,6 +11,7 @@ using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SymbolLabsForge.Contracts;
 using SymbolLabsForge.Validation;
+using System;
 using Xunit;
 
 using SixLabors.ImageSharp.Drawing;
@@ -41,7 +42,20 @@ namespace SymbolLabsForge.Tests.Validation
         {
             // Arrange
             using var image = CreateTestImage(0, 255, true); // Black background, white symbol
-            var capsule = new SymbolCapsule(image, new TemplateMetadata { SymbolType = SymbolType.Unknown }, _metrics, false, new System.Collections.Generic.List<ValidationResult>());
+            var capsule = new SymbolCapsule(image, new TemplateMetadata
+            {
+                TemplateName = "test-template",
+                SymbolType = SymbolType.Unknown,
+                GeneratedBy = "TestRunner",
+                TemplateHash = "test-hash-12345",
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "test-source.png",
+                    Method = PreprocessingMethod.Raw,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = "TestRunner"
+                }
+            }, _metrics, false, new System.Collections.Generic.List<ValidationResult>());
 
             // Act
             var result = _validator.Validate(capsule, _metrics);
@@ -59,7 +73,20 @@ namespace SymbolLabsForge.Tests.Validation
                 ctx.Clear(Color.White);
                 ctx.Fill(Color.Black, new SixLabors.ImageSharp.Drawing.RectangularPolygon(0, 0, 5, 100)); // 5% black
             });
-            var capsule = new SymbolCapsule(image, new TemplateMetadata { SymbolType = SymbolType.Unknown }, _metrics, false, new System.Collections.Generic.List<ValidationResult>());
+            var capsule = new SymbolCapsule(image, new TemplateMetadata
+            {
+                TemplateName = "test-template",
+                SymbolType = SymbolType.Unknown,
+                GeneratedBy = "TestRunner",
+                TemplateHash = "test-hash-12345",
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "test-source.png",
+                    Method = PreprocessingMethod.Raw,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = "TestRunner"
+                }
+            }, _metrics, false, new System.Collections.Generic.List<ValidationResult>());
 
             // Act
             var result = _validator.Validate(capsule, _metrics);
@@ -73,7 +100,20 @@ namespace SymbolLabsForge.Tests.Validation
         {
             // Arrange
             using var image = CreateTestImage(128, 128, true); // Same color for background and foreground
-            var capsule = new SymbolCapsule(image, new TemplateMetadata { SymbolType = SymbolType.Unknown }, _metrics, false, new System.Collections.Generic.List<ValidationResult>());
+            var capsule = new SymbolCapsule(image, new TemplateMetadata
+            {
+                TemplateName = "test-template",
+                SymbolType = SymbolType.Unknown,
+                GeneratedBy = "TestRunner",
+                TemplateHash = "test-hash-12345",
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "test-source.png",
+                    Method = PreprocessingMethod.Raw,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = "TestRunner"
+                }
+            }, _metrics, false, new System.Collections.Generic.List<ValidationResult>());
 
             // Act
             var result = _validator.Validate(capsule, _metrics);
@@ -87,7 +127,20 @@ namespace SymbolLabsForge.Tests.Validation
         {
             // Arrange
             using var image = CreateTestImage(200, 200, false); // Image is a single solid color
-            var capsule = new SymbolCapsule(image, new TemplateMetadata { SymbolType = SymbolType.Unknown }, _metrics, false, new System.Collections.Generic.List<ValidationResult>());
+            var capsule = new SymbolCapsule(image, new TemplateMetadata
+            {
+                TemplateName = "test-template",
+                SymbolType = SymbolType.Unknown,
+                GeneratedBy = "TestRunner",
+                TemplateHash = "test-hash-12345",
+                Provenance = new ProvenanceMetadata
+                {
+                    SourceImage = "test-source.png",
+                    Method = PreprocessingMethod.Raw,
+                    ValidationDate = DateTime.UtcNow,
+                    ValidatedBy = "TestRunner"
+                }
+            }, _metrics, false, new System.Collections.Generic.List<ValidationResult>());
 
             // Act
             var result = _validator.Validate(capsule, _metrics);

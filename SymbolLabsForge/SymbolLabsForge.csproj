@@ -13,6 +13,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.0" />
 
     <!-- Scrutor for DI scanning -->
     <PackageReference Include="Scrutor" Version="6.1.0" />
@@ -24,6 +25,11 @@
   <ItemGroup>
     <!-- Reference to contracts project -->
     <ProjectReference Include="..\SymbolLabsForge.Contracts\SymbolLabsForge.Contracts.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge.Validation.Core\SymbolLabsForge.Validation.Core.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge.ImageProcessing.Utilities\SymbolLabsForge.ImageProcessing.Utilities.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge.Configuration.Validation\SymbolLabsForge.Configuration.Validation.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge.Provenance.Utilities\SymbolLabsForge.Provenance.Utilities.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge.Testing.Utilities\SymbolLabsForge.Testing.Utilities.csproj" />
   </ItemGroup>
 
   <ItemGroup>

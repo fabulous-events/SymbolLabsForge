@@ -3,11 +3,13 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SymbolLabsForge.Contracts;
 using SymbolLabsForge.Generation;
-using SymbolLabsForge.Preprocessing;
+using SymbolLabsForge.ImageProcessing.Utilities;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using SymbolLabsForge.Utils;
+using SymbolLabsForge.Provenance.Utilities;
+using SymbolLabsForge.Testing.Utilities;
 using Xunit;
 using System.Threading.Tasks;
 

@@ -13,7 +13,7 @@ using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SymbolLabsForge.Contracts;
-using SymbolLabsForge.Preprocessing;
+using SymbolLabsForge.ImageProcessing.Utilities;
 
 namespace SymbolLabsForge.Generators
 {

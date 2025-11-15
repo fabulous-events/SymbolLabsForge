@@ -21,9 +21,19 @@ namespace SymbolLabsForge.Tests.Integration
         public OverrideAndFallbackTests(ITestOutputHelper output)
         {
             _output = output;
+
+            // CONFIGURATION VALIDATION FIX (Phase 3):
+            // Provide required AssetSettings.RootDirectory to satisfy [Required] attribute
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    { "AssetSettings:RootDirectory", "/tmp/test-assets" }
+                })
+                .Build();
+
             var serviceProvider = new ServiceCollection()
                 .AddLogging()
-                .AddSymbolForge(new ConfigurationBuilder().Build())
+                .AddSymbolForge(configuration)
                 .BuildServiceProvider();
 
             _symbolForge = serviceProvider.GetRequiredService<ISymbolForge>();

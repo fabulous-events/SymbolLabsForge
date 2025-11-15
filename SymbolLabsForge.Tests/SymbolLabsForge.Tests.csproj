@@ -26,6 +26,8 @@
   <ItemGroup>
     <ProjectReference Include="..\SymbolLabsForge\SymbolLabsForge.csproj" />
     <ProjectReference Include="..\SymbolLabsForge.Contracts\SymbolLabsForge.Contracts.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge.Testing.Utilities\SymbolLabsForge.Testing.Utilities.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge.Provenance.Utilities\SymbolLabsForge.Provenance.Utilities.csproj" />
   </ItemGroup>
     
   <ItemGroup>

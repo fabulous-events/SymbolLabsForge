@@ -1,6 +1,7 @@
 using SymbolLabsForge.Contracts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -33,6 +34,17 @@ namespace SymbolLabsForge.Utils
             var image = await Image.LoadAsync<L8>(imagePath);
 
             var finalSymbolType = dto.Metadata.SymbolType ?? InferSymbolTypeFromFilename(jsonPath);
+
+            // Handle provenance: use DTO provenance if present, otherwise create legacy provenance
+            var provenance = dto.Metadata.Provenance ?? new ProvenanceMetadata
+            {
+                SourceImage = "legacy-capsule",
+                Method = PreprocessingMethod.Raw,
+                ValidationDate = DateTime.UtcNow,
+                ValidatedBy = "CapsuleLoader",
+                Notes = $"Legacy capsule loaded from {Path.GetFileName(jsonPath)} - provenance not recorded"
+            };
+
             var finalMetadata = new TemplateMetadata
             {
                 TemplateName = dto.Metadata.TemplateName,
@@ -41,7 +53,8 @@ namespace SymbolLabsForge.Utils
                 CapsuleId = dto.Metadata.CapsuleId,
                 GeneratedBy = dto.Metadata.GeneratedBy,
                 GeneratedOn = dto.Metadata.GeneratedOn,
-                GenerationSeed = dto.Metadata.GenerationSeed
+                GenerationSeed = dto.Metadata.GenerationSeed,
+                Provenance = provenance
             };
 
             var capsule = new SymbolCapsule(image.Clone(), finalMetadata, dto.Metrics, dto.ValidationResults.All(vr => vr.IsValid), dto.ValidationResults);
@@ -83,6 +96,7 @@ namespace SymbolLabsForge.Utils
             public string GeneratedBy { get; set; } = "unknown";
             public string GeneratedOn { get; set; } = DateTime.UtcNow.ToString("o");
             public int? GenerationSeed { get; set; }
+            public ProvenanceMetadata? Provenance { get; set; } // Optional for backward compatibility with legacy capsules
         }
     }
 }

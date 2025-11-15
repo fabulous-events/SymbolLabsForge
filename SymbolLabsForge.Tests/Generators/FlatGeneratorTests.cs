@@ -1,6 +1,8 @@
 using Xunit;
 using SymbolLabsForge.Generators;
 using SymbolLabsForge.Utils;
+using SymbolLabsForge.Provenance.Utilities;
+using SymbolLabsForge.Testing.Utilities;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
@@ -94,7 +96,10 @@ namespace SymbolLabsForge.Tests.Generators
             }
 
             using var expectedImage = Image.Load<L8>(snapshotPath);
-            var areSimilar = SnapshotComparer.AreSimilar(expectedImage, actualImage);
+
+            // PHASE III-G: Tighten tolerance to 0.001 (0.1%) for geometric symbols
+            // Post-binarization + AA-disabled = strict binary output requires near-zero tolerance
+            var areSimilar = SnapshotComparer.AreSimilar(expectedImage, actualImage, tolerance: 0.001);
 
             if (!areSimilar)
             {

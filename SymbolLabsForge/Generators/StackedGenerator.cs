@@ -17,16 +17,21 @@ namespace SymbolLabsForge.Generators
             {
                 ctx.Fill(Color.White);
 
-                // Define the size of the small rectangles
-                int rectWidth = dimensions.Width / 4;
-                int rectHeight = dimensions.Height / 4;
+                // PHASE II-E: Use centralized geometry constants
+                // Define the size of the small rectangles (proportional to image dimensions)
+                int rectWidth = (int)(dimensions.Width * GeometryConstants.Common.StackedComponentSizeRatio);
+                int rectHeight = (int)(dimensions.Height * GeometryConstants.Common.StackedComponentSizeRatio);
 
                 // Calculate positions for two vertically stacked rectangles, centered
                 var centerX = dimensions.Width / 2;
                 var centerY = dimensions.Height / 2;
 
-                var topRect = new Rectangle(centerX - rectWidth / 2, centerY - rectHeight - 2, rectWidth, rectHeight);
-                var bottomRect = new Rectangle(centerX - rectWidth / 2, centerY + 2, rectWidth, rectHeight);
+                // PHASE II-E FIX: Use proportional gap instead of fixed 4-pixel offset
+                // Gap scales with image height (e.g., 2% of 100px = 2px, 2% of 256px = 5.12px)
+                int halfGap = (int)(dimensions.Height * GeometryConstants.Common.StackedComponentGapRatio / 2);
+
+                var topRect = new Rectangle(centerX - rectWidth / 2, centerY - rectHeight - halfGap, rectWidth, rectHeight);
+                var bottomRect = new Rectangle(centerX - rectWidth / 2, centerY + halfGap, rectWidth, rectHeight);
 
                 // Draw the rectangles
                 ctx.Fill(Color.Black, topRect);

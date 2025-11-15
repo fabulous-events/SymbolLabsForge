@@ -13,28 +13,40 @@ namespace SymbolLabsForge.Generation
         public Image<L8> GenerateRawImage(Size dimensions, int? seed)
         {
             var rgbaImage = new Image<Rgba32>(dimensions.Width, dimensions.Height);
+
+            // PHASE I-C: Disable anti-aliasing for geometric symbols
+            var drawingOptions = new DrawingOptions
+            {
+                GraphicsOptions = new GraphicsOptions { Antialias = false }
+            };
+
             rgbaImage.Mutate(ctx =>
             {
                 ctx.Fill(Color.White);
 
                 var brush = Brushes.Solid(Color.Black);
 
-                // Draw a simple 'x' shape
-                ctx.FillPolygon(brush, new PointF[] {
-                    new PointF(dimensions.Width * 0.2f, dimensions.Height * 0.2f),
-                    new PointF(dimensions.Width * 0.3f, dimensions.Height * 0.2f),
-                    new PointF(dimensions.Width * 0.8f, dimensions.Height * 0.7f),
-                    new PointF(dimensions.Width * 0.7f, dimensions.Height * 0.8f)
+                // PHASE II-F: Use centralized geometry constants
+                // Draw an 'X' shape with two diagonal strokes
+                ctx.FillPolygon(drawingOptions, brush, new PointF[] {
+                    new PointF(dimensions.Width * GeometryConstants.DoubleSharp.Stroke1TopLeftX, dimensions.Height * GeometryConstants.DoubleSharp.Stroke1TopLeftY),
+                    new PointF(dimensions.Width * GeometryConstants.DoubleSharp.Stroke1TopRightX, dimensions.Height * GeometryConstants.DoubleSharp.Stroke1TopRightY),
+                    new PointF(dimensions.Width * GeometryConstants.DoubleSharp.Stroke1BottomRightX, dimensions.Height * GeometryConstants.DoubleSharp.Stroke1BottomRightY),
+                    new PointF(dimensions.Width * GeometryConstants.DoubleSharp.Stroke1BottomLeftX, dimensions.Height * GeometryConstants.DoubleSharp.Stroke1BottomLeftY)
                 });
 
-                ctx.FillPolygon(brush, new PointF[] {
-                    new PointF(dimensions.Width * 0.2f, dimensions.Height * 0.7f),
-                    new PointF(dimensions.Width * 0.3f, dimensions.Height * 0.8f),
-                    new PointF(dimensions.Width * 0.8f, dimensions.Height * 0.3f),
-                    new PointF(dimensions.Width * 0.7f, dimensions.Height * 0.2f)
+                ctx.FillPolygon(drawingOptions, brush, new PointF[] {
+                    new PointF(dimensions.Width * GeometryConstants.DoubleSharp.Stroke2BottomLeftX, dimensions.Height * GeometryConstants.DoubleSharp.Stroke2BottomLeftY),
+                    new PointF(dimensions.Width * GeometryConstants.DoubleSharp.Stroke2BottomRightX, dimensions.Height * GeometryConstants.DoubleSharp.Stroke2BottomRightY),
+                    new PointF(dimensions.Width * GeometryConstants.DoubleSharp.Stroke2TopRightX, dimensions.Height * GeometryConstants.DoubleSharp.Stroke2TopRightY),
+                    new PointF(dimensions.Width * GeometryConstants.DoubleSharp.Stroke2TopLeftX, dimensions.Height * GeometryConstants.DoubleSharp.Stroke2TopLeftY)
                 });
             });
-            return rgbaImage.CloneAs<L8>();
+
+            // PHASE I-B: Apply explicit binarization after conversion
+            var grayscaleImage = rgbaImage.CloneAs<L8>();
+            grayscaleImage.Mutate(ctx => ctx.BinaryThreshold(0.5f));
+            return grayscaleImage;
         }
     }
 }
