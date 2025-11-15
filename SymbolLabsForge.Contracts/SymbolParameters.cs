@@ -18,16 +18,7 @@ namespace SymbolLabsForge.Contracts
         [JsonPropertyName("stroke")]
         public float StrokeThickness { get; set; } = 2.0f;
 
-        [JsonPropertyName("curvature")]
-        public float Curvature { get; set; } = 1.0f;
-
-        [JsonPropertyName("density")]
-        public float Density { get; set; } = 1.0f;
-
         [JsonPropertyName("rotation")]
         public float Rotation { get; set; } = 0.0f;
-
-        [JsonPropertyName("noise")]
-        public float NoiseLevel { get; set; } = 0.0f;
     }
 }

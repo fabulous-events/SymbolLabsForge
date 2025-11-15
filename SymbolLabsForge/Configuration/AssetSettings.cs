@@ -10,8 +10,7 @@ namespace SymbolLabsForge.Configuration
         /// This can be a relative or absolute path.
         /// </summary>
         public string BasePath { get; set; } = "assets";
-        public string RootDirectory { get; set; }
-        public string Images { get; set; }
-        public bool SandboxMode { get; set; }
+        public string RootDirectory { get; set; } = string.Empty;
+        public string Images { get; set; } = string.Empty;
     }
 }

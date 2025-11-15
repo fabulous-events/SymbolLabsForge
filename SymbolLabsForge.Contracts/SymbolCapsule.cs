@@ -9,6 +9,7 @@
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System;
 using System.Collections.Generic;
 
 namespace SymbolLabsForge.Contracts
@@ -18,5 +19,11 @@ namespace SymbolLabsForge.Contracts
         TemplateMetadata Metadata,
         QualityMetrics Metrics,
         bool IsValid,
-        List<ValidationResult> ValidationResults);
+        List<ValidationResult> ValidationResults) : IDisposable
+    {
+        public void Dispose()
+        {
+            TemplateImage?.Dispose();
+        }
+    }
 }

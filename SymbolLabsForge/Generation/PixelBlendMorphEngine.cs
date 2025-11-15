@@ -4,6 +4,8 @@ using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.IO;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
+using SymbolLabsForge.Configuration;
 
 namespace SymbolLabsForge.Generation
 {
@@ -14,9 +16,10 @@ namespace SymbolLabsForge.Generation
     {
         private readonly string _snapshotDirectory;
 
-        public PixelBlendMorphEngine(string snapshotDirectory = "TestAssets/Snapshots")
+        public PixelBlendMorphEngine(IOptions<AssetSettings> assetSettings)
         {
-            _snapshotDirectory = snapshotDirectory;
+            // The "snapshots" are considered assets for the purpose of morphing
+            _snapshotDirectory = Path.Combine(assetSettings.Value.RootDirectory, "Snapshots");
         }
 
         public async Task<Image<L8>> MorphAsync(MorphRequest request)

@@ -1,4 +1,5 @@
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Drawing;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
@@ -17,15 +18,35 @@ namespace SymbolLabsForge.Generation
             {
                 ctx.Fill(Color.White);
 
-                var pen = Pens.Solid(Color.Black, 1);
+                var brush = Brushes.Solid(Color.Black);
 
-                // Draw the vertical lines
-                ctx.DrawLine(pen, new PointF(dimensions.Width * 0.35f, dimensions.Height * 0.2f), new PointF(dimensions.Width * 0.35f, dimensions.Height * 0.8f));
-                ctx.DrawLine(pen, new PointF(dimensions.Width * 0.65f, dimensions.Height * 0.2f), new PointF(dimensions.Width * 0.65f, dimensions.Height * 0.8f));
+                // Draw the vertical lines as filled rectangles
+                ctx.FillPolygon(brush, new PointF[] {
+                    new PointF(dimensions.Width * 0.4f, dimensions.Height * 0.1f),
+                    new PointF(dimensions.Width * 0.5f, dimensions.Height * 0.1f),
+                    new PointF(dimensions.Width * 0.5f, dimensions.Height * 0.9f),
+                    new PointF(dimensions.Width * 0.4f, dimensions.Height * 0.9f)
+                });
+                ctx.FillPolygon(brush, new PointF[] {
+                    new PointF(dimensions.Width * 0.6f, dimensions.Height * 0.1f),
+                    new PointF(dimensions.Width * 0.7f, dimensions.Height * 0.1f),
+                    new PointF(dimensions.Width * 0.7f, dimensions.Height * 0.9f),
+                    new PointF(dimensions.Width * 0.6f, dimensions.Height * 0.9f)
+                });
 
-                // Draw the horizontal lines
-                ctx.DrawLine(pen, new PointF(dimensions.Width * 0.2f, dimensions.Height * 0.45f), new PointF(dimensions.Width * 0.8f, dimensions.Height * 0.25f));
-                ctx.DrawLine(pen, new PointF(dimensions.Width * 0.2f, dimensions.Height * 0.75f), new PointF(dimensions.Width * 0.8f, dimensions.Height * 0.55f));
+                // Draw the horizontal lines as filled rectangles
+                ctx.FillPolygon(brush, new PointF[] {
+                    new PointF(dimensions.Width * 0.2f, dimensions.Height * 0.4f),
+                    new PointF(dimensions.Width * 0.8f, dimensions.Height * 0.4f),
+                    new PointF(dimensions.Width * 0.8f, dimensions.Height * 0.5f),
+                    new PointF(dimensions.Width * 0.2f, dimensions.Height * 0.5f)
+                });
+                ctx.FillPolygon(brush, new PointF[] {
+                    new PointF(dimensions.Width * 0.2f, dimensions.Height * 0.7f),
+                    new PointF(dimensions.Width * 0.8f, dimensions.Height * 0.7f),
+                    new PointF(dimensions.Width * 0.8f, dimensions.Height * 0.8f),
+                    new PointF(dimensions.Width * 0.2f, dimensions.Height * 0.8f)
+                });
             });
             return rgbaImage.CloneAs<L8>();
         }

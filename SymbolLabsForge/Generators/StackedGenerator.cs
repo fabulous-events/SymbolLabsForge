@@ -3,6 +3,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SymbolLabsForge.Contracts;
+using SymbolLabsForge.Utils;
 
 namespace SymbolLabsForge.Generators
 {
@@ -12,25 +13,25 @@ namespace SymbolLabsForge.Generators
 
         public Image<L8> GenerateRawImage(Size dimensions, int? seed)
         {
-            var image = new Image<L8>(dimensions.Width, dimensions.Height);
-            
-            // Define the size of the small rectangles
-            int rectWidth = dimensions.Width / 4;
-            int rectHeight = dimensions.Height / 4;
+            return GeneratorUtils.CreateImageFromDrawing(dimensions.Width, dimensions.Height, ctx =>
+            {
+                ctx.Fill(Color.White);
 
-            // Calculate positions for two vertically stacked rectangles, centered
-            var centerX = dimensions.Width / 2;
-            var centerY = dimensions.Height / 2;
+                // Define the size of the small rectangles
+                int rectWidth = dimensions.Width / 4;
+                int rectHeight = dimensions.Height / 4;
 
-            var topRect = new Rectangle(centerX - rectWidth / 2, centerY - rectHeight - 2, rectWidth, rectHeight);
-            var bottomRect = new Rectangle(centerX - rectWidth / 2, centerY + 2, rectWidth, rectHeight);
+                // Calculate positions for two vertically stacked rectangles, centered
+                var centerX = dimensions.Width / 2;
+                var centerY = dimensions.Height / 2;
 
-            // Draw the rectangles
-            image.Mutate(ctx => ctx
-                .Fill(Color.White, topRect)
-                .Fill(Color.White, bottomRect));
+                var topRect = new Rectangle(centerX - rectWidth / 2, centerY - rectHeight - 2, rectWidth, rectHeight);
+                var bottomRect = new Rectangle(centerX - rectWidth / 2, centerY + 2, rectWidth, rectHeight);
 
-            return image;
+                // Draw the rectangles
+                ctx.Fill(Color.Black, topRect);
+                ctx.Fill(Color.Black, bottomRect);
+            });
         }
     }
 }

@@ -21,34 +21,38 @@ namespace SymbolLabsForge.Generators
     {
         public Image<L8> Generate(SymbolParameters parameters, Size dimensions)
         {
+            Image<L8> skeletonizedImage;
+
             // Create an Rgba32 image for drawing, as L8 surfaces do not support these operations directly.
-            using var imageRgba32 = new Image<Rgba32>(dimensions.Width, dimensions.Height);
-
-            // White background, black drawing for mask generation
-            imageRgba32.Mutate(ctx => ctx.Fill(Color.White));
-
-            switch (parameters.SymbolType)
+            using (var imageRgba32 = new Image<Rgba32>(dimensions.Width, dimensions.Height))
             {
-                case MusicSymbolType.WholeNote:
-                    DrawWholeNote(imageRgba32, parameters);
-                    break;
-                case MusicSymbolType.QuarterNote:
-                    DrawQuarterNote(imageRgba32, parameters);
-                    break;
-                // Other cases will be added here
-                default:
-                    throw new NotImplementedException($"Generator for {parameters.SymbolType} is not implemented.");
+                // White background, black drawing for mask generation
+                imageRgba32.Mutate(ctx => ctx.Fill(Color.White));
+
+                switch (parameters.SymbolType)
+                {
+                    case MusicSymbolType.WholeNote:
+                        DrawWholeNote(imageRgba32, parameters);
+                        break;
+                    case MusicSymbolType.QuarterNote:
+                        DrawQuarterNote(imageRgba32, parameters);
+                        break;
+                    // Other cases will be added here
+                    default:
+                        throw new NotImplementedException($"Generator for {parameters.SymbolType} is not implemented.");
+                }
+
+                // Apply transformations
+                imageRgba32.Mutate(ctx => ctx.Rotate(parameters.Rotation));
+
+                // Convert the Rgba32 drawing to an L8 mask for processing
+                using (var l8Image = imageRgba32.CloneAs<L8>())
+                {
+                    // Skeletonize the L8 image
+                    var skeletonizer = new SkeletonizationProcessor();
+                    skeletonizedImage = skeletonizer.Process(l8Image);
+                }
             }
-
-            // Apply transformations
-            imageRgba32.Mutate(ctx => ctx.Rotate(parameters.Rotation));
-
-            // Convert the Rgba32 drawing to an L8 mask for processing
-            using var l8Image = imageRgba32.CloneAs<L8>();
-
-            // Skeletonize the L8 image
-            var skeletonizer = new SkeletonizationProcessor();
-            var skeletonizedImage = skeletonizer.Process(l8Image);
 
             return skeletonizedImage;
         }

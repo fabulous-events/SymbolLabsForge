@@ -1,7 +1,6 @@
 using SymbolLabsForge.Contracts;
 using SymbolLabsForge.Validation;
 using System.ComponentModel.DataAnnotations;
-using System.IO;
 using Xunit;
 
 namespace SymbolLabsForge.Tests.Validation
@@ -28,21 +27,21 @@ namespace SymbolLabsForge.Tests.Validation
         [Fact]
         public void ValidateMetadata_WithValidMetadata_DoesNotThrow()
         {
-            var metadata = new TemplateMetadata { TemplateName = "valid_name" };
+            var metadata = new TemplateMetadata { TemplateName = "valid_name", SymbolType = SymbolType.Unknown };
             TemplateValidator.ValidateMetadata(metadata);
         }
 
         [Fact]
         public void ValidateMetadata_WithNullName_ThrowsValidationException()
         {
-            var metadata = new TemplateMetadata { TemplateName = null! };
+            var metadata = new TemplateMetadata { TemplateName = null!, SymbolType = SymbolType.Unknown };
             Assert.Throws<ValidationException>(() => TemplateValidator.ValidateMetadata(metadata));
         }
 
         [Fact]
         public void ValidateMetadata_WithEmptyName_ThrowsValidationException()
         {
-            var metadata = new TemplateMetadata { TemplateName = "" };
+            var metadata = new TemplateMetadata { TemplateName = "", SymbolType = SymbolType.Unknown };
             Assert.Throws<ValidationException>(() => TemplateValidator.ValidateMetadata(metadata));
         }
 

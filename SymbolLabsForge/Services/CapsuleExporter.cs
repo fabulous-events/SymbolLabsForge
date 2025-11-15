@@ -1,8 +1,8 @@
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
 using SixLabors.ImageSharp.Formats.Png;
 using SymbolLabsForge.Contracts;
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace SymbolLabsForge.Services
@@ -31,12 +31,12 @@ namespace SymbolLabsForge.Services
             };
 
             // 4. Serialize and save the JSON
-            var jsonSettings = new JsonSerializerSettings
+            var jsonOptions = new JsonSerializerOptions
             {
-                Formatting = Formatting.Indented,
-                Converters = { new StringEnumConverter() }
+                WriteIndented = true,
+                Converters = { new JsonStringEnumConverter() }
             };
-            var jsonContent = JsonConvert.SerializeObject(capsuleDto, jsonSettings);
+            var jsonContent = JsonSerializer.Serialize(capsuleDto, jsonOptions);
             await File.WriteAllTextAsync(jsonPath, jsonContent);
         }
     }

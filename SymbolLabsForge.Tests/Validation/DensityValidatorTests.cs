@@ -5,12 +5,20 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using System.Collections.Generic;
+using Microsoft.Extensions.Options;
 
 namespace SymbolLabsForge.Tests.Validation
 {
     public class DensityValidatorTests
     {
-        private readonly DensityValidator _validator = new DensityValidator();
+        private readonly DensityValidator _validator;
+
+        public DensityValidatorTests()
+        {
+            var settings = new DensityValidatorSettings();
+            var options = new MockOptions<DensityValidatorSettings>(settings);
+            _validator = new DensityValidator(options);
+        }
 
         [Fact]
         public void Validate_WithDensityBelowThreshold_ReturnsFail()
@@ -190,7 +198,7 @@ namespace SymbolLabsForge.Tests.Validation
         {
             return new SymbolCapsule(
                 image,
-                new TemplateMetadata(),
+                new TemplateMetadata { SymbolType = SymbolType.Unknown },
                 new QualityMetrics(),
                 true,
                 new List<ValidationResult>()

@@ -48,6 +48,7 @@ namespace SymbolLabsForge
             {
                 TemplateName = $"{request.Type}_morph_{request.FromStyle}_to_{request.ToStyle}",
                 GeneratedBy = $"SymbolLabsForge v{version}", // Should be dynamic
+                SymbolType = request.Type,
                 MorphLineage = $"{request.Type}:{request.FromStyle} -> {request.Type}:{request.ToStyle}",
                 InterpolationFactor = request.InterpolationFactor,
                 AuditTag = "Phase5"
@@ -81,40 +82,58 @@ namespace SymbolLabsForge
         {
             _logger.LogInformation("Received request to generate {SymbolType} at {DimensionsCount} dimensions.", request.Type, request.Dimensions.Count);
 
-            var primaryCapsule = GenerateSingleCapsule(request, request.Dimensions.First(), _skeletonizationProcessor, _validators, _logger);
-
-            var variants = new List<SymbolCapsule>();
-            foreach (var dim in request.Dimensions.Skip(1))
+            var generatedCapsules = new List<SymbolCapsule>();
+            try
             {
-                variants.Add(GenerateSingleCapsule(request, dim, _skeletonizationProcessor, _validators, _logger));
-            }
+                var primaryCapsule = GenerateSingleCapsule(request, request.Dimensions.First(), _skeletonizationProcessor, _validators, _logger);
+                generatedCapsules.Add(primaryCapsule);
 
-            // Handle edge cases
-            if (request.EdgeCasesToGenerate != null)
-            {
-                foreach (var edgeCase in request.EdgeCasesToGenerate)
+                var variants = new List<SymbolCapsule>();
+                foreach (var dim in request.Dimensions.Skip(1))
                 {
-                    _logger.LogInformation("Generating edge case: {EdgeCaseType}", edgeCase);
-                    Image<L8> edgeCaseImage = primaryCapsule.TemplateImage.Clone();
-
-                    switch (edgeCase)
-                    {
-                        case EdgeCaseType.Rotated:
-                            edgeCaseImage.Mutate(x => x.Rotate(45));
-                            break;
-                        case EdgeCaseType.Clipped:
-                            edgeCaseImage.Mutate(x => x.Crop(new Rectangle(10, 10, edgeCaseImage.Width - 20, edgeCaseImage.Height - 20)));
-                            break;
-                        case EdgeCaseType.InkBleed:
-                            edgeCaseImage.Mutate(x => x.GaussianBlur(1.5f));
-                            break;
-                    }
-
-                    variants.Add(CreateCapsuleFromImage(edgeCaseImage, primaryCapsule.Metadata, $"edge_{edgeCase}"));
+                    var variantCapsule = GenerateSingleCapsule(request, dim, _skeletonizationProcessor, _validators, _logger);
+                    generatedCapsules.Add(variantCapsule);
+                    variants.Add(variantCapsule);
                 }
-            }
 
-            return new SymbolCapsuleSet(primaryCapsule, variants);
+                // Handle edge cases
+                if (request.EdgeCasesToGenerate != null)
+                {
+                    foreach (var edgeCase in request.EdgeCasesToGenerate)
+                    {
+                        _logger.LogInformation("Generating edge case: {EdgeCaseType}", edgeCase);
+                        Image<L8> edgeCaseImage = primaryCapsule.TemplateImage.Clone();
+
+                        switch (edgeCase)
+                        {
+                            case EdgeCaseType.Rotated:
+                                edgeCaseImage.Mutate(x => x.Rotate(Constants.DefaultRotation));
+                                break;
+                            case EdgeCaseType.Clipped:
+                                var cropRect = new Rectangle(Constants.DefaultCropX, Constants.DefaultCropY, edgeCaseImage.Width - (Constants.DefaultCropX * 2), edgeCaseImage.Height - (Constants.DefaultCropY * 2));
+                                edgeCaseImage.Mutate(x => x.Crop(cropRect));
+                                break;
+                            case EdgeCaseType.InkBleed:
+                                edgeCaseImage.Mutate(x => x.GaussianBlur(Constants.DefaultGaussianBlur));
+                                break;
+                        }
+                        var edgeCaseCapsule = CreateCapsuleFromImage(edgeCaseImage, primaryCapsule.Metadata, $"edge_{edgeCase}");
+                        generatedCapsules.Add(edgeCaseCapsule);
+                        variants.Add(edgeCaseCapsule);
+                    }
+                }
+
+                return new SymbolCapsuleSet(primaryCapsule, variants);
+            }
+            catch (Exception)
+            {
+                // If anything goes wrong, dispose of any capsules we've created to prevent leaks.
+                foreach (var capsule in generatedCapsules)
+                {
+                    capsule.Dispose();
+                }
+                throw;
+            }
         }
 
         private SymbolCapsule CreateCapsuleFromImage(Image<L8> image, TemplateMetadata originalMetadata, string nameSuffix)
@@ -126,10 +145,7 @@ namespace SymbolLabsForge
                 AspectRatio = (double)image.Height / image.Width
             };
 
-            using var ms = new MemoryStream();
-            image.SaveAsBmp(ms);
-            var imageBytes = ms.ToArray();
-            var sha = HashUtil.ComputeSha256(imageBytes);
+            var sha = CanonicalHashProvider.ComputeSha256(image);
 
             var metadata = originalMetadata with
             {
@@ -210,10 +226,7 @@ namespace SymbolLabsForge
             }
 
             // ... (hash calculation and return)
-            using var ms = new MemoryStream();
-            finalImage.SaveAsBmp(ms);
-            var imageBytes = ms.ToArray();
-            var sha = HashUtil.ComputeSha256(imageBytes);
+            var sha = CanonicalHashProvider.ComputeSha256(finalImage);
 
             metadata = metadata with { TemplateHash = sha };
             metadata = metadata with { CapsuleId = $"{metadata.TemplateName}-{metadata.TemplateHash.Substring(0, 8)}" };
@@ -222,7 +235,7 @@ namespace SymbolLabsForge
 
         private SymbolCapsule CreateFallbackCapsule(SymbolRequest request, Size dimensions, string failureReason)
         {
-            var metadata = new TemplateMetadata { TemplateName = $"{request.Type}-fallback" };
+            var metadata = new TemplateMetadata { TemplateName = $"{request.Type}-fallback", SymbolType = request.Type };
             TemplateValidator.ValidateMetadata(metadata);
             var metrics = new QualityMetrics { Width = dimensions.Width, Height = dimensions.Height };
             var validationResults = new List<ValidationResult> { new ValidationResult(false, "FallbackHandler", failureReason) };

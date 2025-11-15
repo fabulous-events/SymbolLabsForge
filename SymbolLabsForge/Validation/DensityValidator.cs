@@ -4,6 +4,9 @@ using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Processing;
 using System;
 using System.Collections.Generic;
+using Microsoft.Extensions.Options;
+
+using SymbolLabsForge.Utils;
 
 namespace SymbolLabsForge.Validation
 {
@@ -11,11 +14,22 @@ namespace SymbolLabsForge.Validation
     {
         public string Name => "Density Validator";
 
-        private const float MinDensityThreshold = 0.05f; // 5%
-        private const float MaxDensityThreshold = 0.12f; // 12%
+        private readonly float _minDensityThreshold;
+        private readonly float _maxDensityThreshold;
 
-        public ValidationResult Validate(SymbolCapsule capsule, QualityMetrics metrics)
+        public DensityValidator(IOptions<DensityValidatorSettings> options)
         {
+            _minDensityThreshold = options.Value.MinDensityThreshold;
+            _maxDensityThreshold = options.Value.MaxDensityThreshold;
+        }
+
+        public ValidationResult Validate(SymbolCapsule? capsule, QualityMetrics metrics)
+        {
+            if (capsule == null || capsule.TemplateImage == null)
+            {
+                return new ValidationResult(false, Name, "Capsule or its image cannot be null.");
+            }
+
             int blackPixelCount = 0;
             int totalPixels = capsule.TemplateImage.Width * capsule.TemplateImage.Height;
 
@@ -31,7 +45,7 @@ namespace SymbolLabsForge.Validation
                 {
                     foreach (var pixel in accessor.GetRowSpan(y))
                     {
-                        if (pixel.PackedValue < 128) // Consider non-white pixels as "ink"
+                        if (PixelUtils.IsInk(pixel.PackedValue)) // Use centralized helper
                         {
                             blackPixelCount++;
                         }
@@ -48,16 +62,16 @@ namespace SymbolLabsForge.Validation
             float density = blackPixelCount / (float)totalPixels;
             metrics.Density = density * 100; // Store as percentage
 
-            if (density < MinDensityThreshold)
+            if (density < _minDensityThreshold)
             {
                 metrics.DensityStatus = DensityStatus.TooLow;
-                return new ValidationResult(false, Name, $"Density of {metrics.Density:F2}% is below the {MinDensityThreshold * 100}% threshold.");
+                return new ValidationResult(false, Name, $"Density of {metrics.Density:F2}% is below the {_minDensityThreshold * 100}% threshold.");
             }
 
-            if (density > MaxDensityThreshold)
+            if (density > _maxDensityThreshold)
             {
                 metrics.DensityStatus = DensityStatus.TooHigh;
-                return new ValidationResult(false, Name, $"Density of {metrics.Density:F2}% is above the {MaxDensityThreshold * 100}% threshold.");
+                return new ValidationResult(false, Name, $"Density of {metrics.Density:F2}% is above the {_maxDensityThreshold * 100}% threshold.");
             }
 
             metrics.DensityStatus = DensityStatus.Valid;

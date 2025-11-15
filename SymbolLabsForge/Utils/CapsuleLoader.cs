@@ -1,11 +1,12 @@
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using SymbolLabsForge.Contracts;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace SymbolLabsForge.Utils
 {
@@ -14,19 +15,16 @@ namespace SymbolLabsForge.Utils
         public static async Task<(SymbolCapsule Capsule, SymbolRequest Request)> LoadFromFileAsync(string jsonPath)
         {
             var jsonContent = await File.ReadAllTextAsync(jsonPath);
-            var jsonObject = JObject.Parse(jsonContent);
+            
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters = { new JsonStringEnumConverter() }
+            };
+            var dto = JsonSerializer.Deserialize<CapsuleDto>(jsonContent, options);
 
-            var metadataToken = jsonObject["Metadata"];
-            if (metadataToken == null) throw new InvalidDataException("Capsule JSON is missing 'Metadata' block.");
-            var metadata = metadataToken.ToObject<TemplateMetadata>() ?? throw new InvalidDataException("Failed to deserialize 'Metadata'.");
-
-            var metricsToken = jsonObject["Metrics"];
-            if (metricsToken == null) throw new InvalidDataException("Capsule JSON is missing 'Metrics' block.");
-            var metrics = metricsToken.ToObject<QualityMetrics>() ?? throw new InvalidDataException("Failed to deserialize 'Metrics'.");
-
-            var validationResultsToken = jsonObject["ValidationResults"];
-            var validationResults = validationResultsToken?.ToObject<List<ValidationResult>>() ?? new List<ValidationResult>();
-
+            if (dto == null) throw new InvalidDataException("Failed to deserialize capsule JSON.");
+            
             var imagePath = Path.ChangeExtension(jsonPath, ".png");
             if (!File.Exists(imagePath))
             {
@@ -34,17 +32,58 @@ namespace SymbolLabsForge.Utils
             }
             var image = await Image.LoadAsync<L8>(imagePath);
 
-            var capsule = new SymbolCapsule(image, metadata, metrics, validationResults.All(vr => vr.IsValid), validationResults);
+            var finalSymbolType = dto.Metadata.SymbolType ?? InferSymbolTypeFromFilename(jsonPath);
+            var finalMetadata = new TemplateMetadata
+            {
+                TemplateName = dto.Metadata.TemplateName,
+                SymbolType = finalSymbolType,
+                TemplateHash = dto.Metadata.TemplateHash,
+                CapsuleId = dto.Metadata.CapsuleId,
+                GeneratedBy = dto.Metadata.GeneratedBy,
+                GeneratedOn = dto.Metadata.GeneratedOn,
+                GenerationSeed = dto.Metadata.GenerationSeed
+            };
 
-            // Reconstruct the request
+            var capsule = new SymbolCapsule(image.Clone(), finalMetadata, dto.Metrics, dto.ValidationResults.All(vr => vr.IsValid), dto.ValidationResults);
+
+            // Reconstruct the request using the reliable property
             var request = new SymbolRequest(
-                Enum.Parse<SymbolType>(metadata.TemplateName.Split('-')[0], true), // Infer from name
-                new List<Size> { new Size(metrics.Width, metrics.Height) },
+                finalSymbolType,
+                new List<Size> { new Size(dto.Metrics.Width, dto.Metrics.Height) },
                 new List<OutputForm> { OutputForm.Raw }, // Assume Raw as a base
-                metadata.GenerationSeed
+                dto.Metadata.GenerationSeed
             );
 
             return (capsule, request);
         }
+
+        private static SymbolType InferSymbolTypeFromFilename(string filename)
+        {
+            var name = Path.GetFileNameWithoutExtension(filename).ToLowerInvariant();
+            if (name.Contains("clef")) return SymbolType.Clef;
+            if (name.Contains("flat")) return SymbolType.Flat;
+            if (name.Contains("sharp")) return SymbolType.Sharp;
+            if (name.Contains("natural")) return SymbolType.Natural;
+            return SymbolType.Unknown;
+        }
+
+        private class CapsuleDto
+        {
+            public required TemplateMetadataDto Metadata { get; set; }
+            public required QualityMetrics Metrics { get; set; }
+            public required List<ValidationResult> ValidationResults { get; set; }
+        }
+
+        private class TemplateMetadataDto
+        {
+            public string TemplateName { get; set; } = "";
+            public SymbolType? SymbolType { get; set; }
+            public string TemplateHash { get; set; } = "";
+            public string CapsuleId { get; set; } = "";
+            public string GeneratedBy { get; set; } = "unknown";
+            public string GeneratedOn { get; set; } = DateTime.UtcNow.ToString("o");
+            public int? GenerationSeed { get; set; }
+        }
     }
 }
+

@@ -85,7 +85,9 @@ namespace SymbolLabsForge.Tests.Generators
             if (!File.Exists(snapshotPath))
             {
                 // First run: save the generated image as the snapshot
-                Directory.CreateDirectory(Path.GetDirectoryName(snapshotPath));
+                var snapshotDir = Path.GetDirectoryName(snapshotPath);
+                Assert.NotNull(snapshotDir);
+                Directory.CreateDirectory(snapshotDir);
                 actualImage.Save(snapshotPath);
                 Assert.True(true, $"Snapshot created at {snapshotPath}. Please verify it manually.");
                 return;

@@ -1,38 +1,36 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <!-- NuGet Package Metadata -->
-    <PackageId>SymbolLabs.Forge</PackageId>
-    <Version>1.6.0</Version>
-    <Authors>SymbolLabs</Authors>
-    <RepositoryUrl>https://github.com/symbollabs/SymbolLabsForge</RepositoryUrl>
-    <PackageTags>symbol-generation;validation;governance;capsule</PackageTags>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <TargetFramework>net9.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
-      <_Parameter1>SymbolLabsForge.Tests</_Parameter1>
-    </AssemblyAttribute>
-  </ItemGroup>
-
-  <ItemGroup>
+    <!-- Core Microsoft.Extensions packages -->
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+
+    <!-- Scrutor for DI scanning -->
     <PackageReference Include="Scrutor" Version="6.1.0" />
+
+    <!-- ImageSharp for symbol rendering -->
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.7" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Reference to contracts project -->
     <ProjectReference Include="..\SymbolLabsForge.Contracts\SymbolLabsForge.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Allow internal visibility for tests -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>SymbolLabsForge.Tests</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

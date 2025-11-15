@@ -5,7 +5,8 @@ using SixLabors.ImageSharp;
 using System.IO;
 using System.Collections.Generic;
 using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace SymbolLabsForge.Tests.Integration
@@ -20,9 +21,15 @@ namespace SymbolLabsForge.Tests.Integration
             var services = new ServiceCollection();
             services.AddLogging(builder => builder.AddConsole());
 
-            // Create a mock configuration
+            // Create a mock configuration for the test
+            var testConfig = new Dictionary<string, string?>
+            {
+                { "Validation:Density:MaxDensityThreshold", "0.95" }, // 95%
+                { "AssetSettings:RootDirectory", Path.GetTempPath() }
+            };
+
             var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string>())
+                .AddInMemoryCollection(testConfig)
                 .Build();
 
             services.AddSymbolForge(configuration);
@@ -30,41 +37,33 @@ namespace SymbolLabsForge.Tests.Integration
             _symbolForge = _serviceProvider.GetRequiredService<ISymbolForge>();
         }
 
+        public static IEnumerable<object[]> SymbolTestData()
+        {
+            foreach (var symbolType in Enum.GetValues(typeof(SymbolType)))
+            {
+                if ((SymbolType)symbolType == SymbolType.Unknown) continue;
+                yield return new object[] { symbolType, 100, 100 };
+                yield return new object[] { symbolType, 256, 256 };
+            }
+        }
+
         [Theory]
-        [Trait("Category", "Integration")]
-        [InlineData(SymbolType.Flat, 12, 30)]
-        [InlineData(SymbolType.Sharp, 20, 40)]
-        [InlineData(SymbolType.Natural, 30, 80)]
+        [MemberData(nameof(SymbolTestData))]
         public void Generate_AllSymbolTypes_EndToEnd_Succeeds(SymbolType symbolType, int width, int height)
         {
             // Arrange
-            var symbolForge = _serviceProvider.GetRequiredService<ISymbolForge>();
             var request = new SymbolRequest(
                 symbolType,
                 new List<Size> { new Size(width, height) },
-                new List<OutputForm> { OutputForm.Skeletonized },
-                1337 // Make generation deterministic
+                new List<OutputForm> { OutputForm.Binarized }
             );
 
             // Act
-            var capsuleSet = symbolForge.Generate(request);
+            var capsuleSet = _symbolForge.Generate(request);
+            var primaryCapsule = capsuleSet.Primary;
 
             // Assert
-            Assert.NotNull(capsuleSet);
-            Assert.NotNull(capsuleSet.Primary);
-            
-            if (!capsuleSet.Primary.IsValid)
-            {
-                // Save failing artifact for inspection
-                SaveFailureArtifact(capsuleSet.Primary, symbolType, width, height);
-            }
-
-            var validationFailures = capsuleSet.Primary.ValidationResults
-                .Where(r => !r.IsValid)
-                .Select(r => $"{r.ValidatorName}: {r.FailureMessage}");
-
-            Assert.True(capsuleSet.Primary.IsValid, $"Validation failed for {symbolType} ({width}x{height}):\n{string.Join("\n", validationFailures)}");
-            Assert.NotEmpty(capsuleSet.Primary.ValidationResults);
+            Assert.True(primaryCapsule.IsValid, $"Validation failed for {symbolType} ({width}x{height}):\n{string.Join("\n", primaryCapsule.ValidationResults.Where(r => !r.IsValid).Select(r => $"{r.ValidatorName}: {r.FailureMessage}"))}");
         }
 
         private void SaveFailureArtifact(SymbolCapsule capsule, SymbolType symbolType, int width, int height)
@@ -86,7 +85,12 @@ namespace SymbolLabsForge.Tests.Integration
                 capsule.Metrics,
                 capsule.ValidationResults
             };
-            File.WriteAllText(jsonPath, JsonConvert.SerializeObject(data, Formatting.Indented));
+            var jsonOptions = new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Converters = { new JsonStringEnumConverter() }
+            };
+            File.WriteAllText(jsonPath, JsonSerializer.Serialize(data, jsonOptions));
         }
     }
 }

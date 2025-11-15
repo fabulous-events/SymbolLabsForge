@@ -29,7 +29,7 @@ namespace SymbolLabsForge.Tests.Integration
                 originalImage[5, 5] = new L8(0); // One black pixel
                 await originalImage.SaveAsync(imagePath);
 
-                var metadata = new TemplateMetadata { TemplateName = "Flat-10x10" };
+                var metadata = new TemplateMetadata { TemplateName = "Flat-10x10", SymbolType = SymbolType.Flat };
                 var metrics = new QualityMetrics { Width = 10, Height = 10 };
                 var validationResults = new List<ValidationResult> { new ValidationResult(true, "TestValidator") };
                 var dto = new { Metadata = metadata, Metrics = metrics, ValidationResults = validationResults };

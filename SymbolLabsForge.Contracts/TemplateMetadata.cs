@@ -19,7 +19,7 @@ namespace SymbolLabsForge.Contracts
         public int? GenerationSeed { get; init; }
         public string TemplateHash { get; init; } = "unhashed";
         public string CapsuleId { get; init; } = Guid.NewGuid().ToString();
-        public SymbolType SymbolType { get; init; }
+        public required SymbolType SymbolType { get; init; }
         public string? MorphLineage { get; init; }
         public float? InterpolationFactor { get; init; }
         public string? InterpolatedAttribute { get; init; }

@@ -1,5 +1,6 @@
 using SymbolLabsForge.Contracts;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using System;
 
@@ -13,14 +14,17 @@ namespace SymbolLabsForge.Analysis
         public void AddCapsule(SymbolCapsule capsule)
         {
             var node = new LineageNode(
-                CapsuleId: capsule.Metadata.CapsuleId,
-                Type: capsule.Metadata.SymbolType,
-                Style: capsule.Metadata.TemplateName,
-                InterpolationFactor: capsule.Metadata.InterpolationFactor,
-                Contributor: capsule.Metadata.GeneratedBy,
-                GeneratedOn: DateTime.Parse(capsule.Metadata.GeneratedOn)
+                capsule.Metadata.CapsuleId,
+                capsule.Metadata.SymbolType,
+                "Generated", // Default style for now
+                null, // No interpolation factor for now
+                "System", // Default contributor
+                DateTime.UtcNow
             );
             Nodes.Add(node);
+
+            // For now, we don't have parent tracking, so all nodes are roots.
+            // This can be expanded later.
         }
 
         public void Link(string fromId, string toId, string transitionType, string auditTag)
@@ -35,7 +39,8 @@ namespace SymbolLabsForge.Analysis
             sb.AppendLine("  node [shape=box, style=rounded];");
             foreach (var node in Nodes)
             {
-                sb.AppendLine($"  \\\"{node.CapsuleId}\\\" [label=\\\"{node.Type}\\\\n({node.Style})\\\\nFactor: {node.InterpolationFactor ?? 0.0f}\\\"];");
+                var factorLabel = node.InterpolationFactor.HasValue ? $"Factor: {node.InterpolationFactor.Value}" : "Factor: N/A";
+                sb.AppendLine($"  \\\"{node.CapsuleId}\\\" [label=\\\"{node.Type}\\\\n({node.Style})\\\\n{factorLabel}\\\"];");
             }
 
             foreach (var edge in Edges)

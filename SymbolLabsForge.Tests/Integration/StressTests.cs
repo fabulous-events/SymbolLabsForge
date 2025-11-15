@@ -20,9 +20,14 @@ namespace SymbolLabsForge.Tests.Integration
             var services = new ServiceCollection();
             services.AddLogging(builder => builder.AddConsole());
 
-            // Create a mock configuration
+            var testConfig = new Dictionary<string, string?>
+            {
+                { "Validation:Density:MaxDensityThreshold", "0.95" },
+                { "AssetSettings:RootDirectory", Path.GetTempPath() }
+            };
+
             var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string>())
+                .AddInMemoryCollection(testConfig)
                 .Build();
 
             services.AddSymbolForge(configuration);

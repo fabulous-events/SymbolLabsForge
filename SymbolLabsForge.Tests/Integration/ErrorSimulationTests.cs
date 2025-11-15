@@ -1,11 +1,9 @@
 using Xunit;
-using SymbolLabsForge.Contracts;
 using Microsoft.Extensions.DependencyInjection;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using System.Collections.Generic;
 using SixLabors.ImageSharp;
 using Microsoft.Extensions.Logging;
+using SymbolLabsForge.Contracts;
 
 namespace SymbolLabsForge.Tests.Integration
 {
@@ -20,8 +18,13 @@ namespace SymbolLabsForge.Tests.Integration
             services.AddLogging(builder => builder.AddConsole());
 
             // Create a mock configuration
+            var testConfig = new Dictionary<string, string?>
+            {
+                { "Validation:Density:MaxDensityThreshold", "0.95" },
+                { "AssetSettings:RootDirectory", Path.GetTempPath() }
+            };
             var configuration = new ConfigurationBuilder()
-                .AddInMemoryCollection(new Dictionary<string, string>())
+                .AddInMemoryCollection(testConfig)
                 .Build();
 
             services.AddSymbolForge(configuration);

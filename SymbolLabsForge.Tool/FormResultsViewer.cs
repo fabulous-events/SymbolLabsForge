@@ -23,6 +23,8 @@ namespace SymbolLabsForge.Tool
 
         public void LoadCapsule(SymbolCapsule capsule)
         {
+            // Dispose of the previous capsule before loading the new one
+            _currentCapsule?.Dispose();
             _currentCapsule = capsule;
 
             // Display the image

@@ -39,15 +39,18 @@ namespace SymbolLabsForge.Tool
 
                 // 2. Generate the symbol
                 var symbolForge = _serviceProvider.GetRequiredService<ISymbolForge>();
-                var capsuleSet = symbolForge.Generate(request);
-
-                _logger.LogInformation("Generation complete. Launching results viewer.");
-
-                // 3. Launch the results viewer form
-                using (var resultsForm = _serviceProvider.GetRequiredService<FormResultsViewer>())
+                using (var capsuleSet = symbolForge.Generate(request))
                 {
-                    resultsForm.LoadCapsule(capsuleSet.Primary);
-                    resultsForm.ShowDialog();
+                    _logger.LogInformation("Generation complete. Launching results viewer.");
+
+                    // 3. Launch the results viewer form
+                    using (var resultsForm = _serviceProvider.GetRequiredService<FormResultsViewer>())
+                    {
+                        // The resultsForm takes ownership of the primary capsule's display,
+                        // but the using block on capsuleSet ensures it's disposed of eventually.
+                        resultsForm.LoadCapsule(capsuleSet.Primary);
+                        resultsForm.ShowDialog();
+                    }
                 }
             }
             catch (Exception ex)

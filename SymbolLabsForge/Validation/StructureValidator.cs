@@ -18,35 +18,23 @@ namespace SymbolLabsForge.Validation
 
         public ValidationResult Validate(SymbolCapsule capsule, QualityMetrics metrics)
         {
-            if (capsule?.TemplateImage == null)
+            if (capsule == null)
             {
-                return new ValidationResult(false, Name, "Input capsule or image is null.");
+                return new ValidationResult(false, Name, "Capsule cannot be null.");
             }
 
+            var result = new ValidationResult(true, Name);
             var image = capsule.TemplateImage;
-            bool hasContent = false;
+            var centerX = image.Width / 2;
+            var centerY = image.Height / 2;
+            var centerPixel = image[centerX, centerY];
 
-            image.ProcessPixelRows(accessor =>
+            if (centerPixel.PackedValue > 128) // Assuming L8 format, 0 is black, 255 is white
             {
-                for (int y = 0; y < accessor.Height; y++)
-                {
-                    foreach (var pixel in accessor.GetRowSpan(y))
-                    {
-                        if (pixel.PackedValue < 255) // Found a non-white pixel
-                        {
-                            hasContent = true;
-                            return;
-                        }
-                    }
-                }
-            });
-
-            if (!hasContent)
-            {
-                return new ValidationResult(false, Name, "Image canvas is empty.");
+                return new ValidationResult(false, Name, "Symbol is hollow; center pixel is not ink.");
             }
 
-            return new ValidationResult(true, Name);
+            return result;
         }
     }
 }

@@ -29,7 +29,7 @@ namespace SymbolLabsForge.Tests
         {
             public string Name => "MockValidator";
 
-            public ValidationResult Validate(SymbolCapsule capsule, QualityMetrics metrics)
+            public ValidationResult Validate(SymbolCapsule? capsule, QualityMetrics metrics)
             {
                 return new ValidationResult(true, Name);
             }
@@ -130,10 +130,7 @@ namespace SymbolLabsForge.Tests
             var result = _forge.Generate(request);
 
             // Assert
-            using var ms = new MemoryStream();
-            result.Primary.TemplateImage.SaveAsBmp(ms);
-            var imageBytes = ms.ToArray();
-            var expectedHash = HashUtil.ComputeSha256(imageBytes);
+            var expectedHash = CanonicalHashProvider.ComputeSha256(result.Primary.TemplateImage);
 
             Assert.Equal(expectedHash, result.Primary.Metadata.TemplateHash);
         }

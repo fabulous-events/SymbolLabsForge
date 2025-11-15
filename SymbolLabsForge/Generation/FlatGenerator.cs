@@ -4,6 +4,7 @@ using SymbolLabsForge.Contracts;
 using SixLabors.ImageSharp.Processing;
 using SixLabors.ImageSharp.Drawing.Processing;
 using SixLabors.ImageSharp.Drawing;
+using SymbolLabsForge.Utils;
 
 namespace SymbolLabsForge.Generators
 {
@@ -13,48 +14,28 @@ namespace SymbolLabsForge.Generators
 
         public Image<L8> GenerateRawImage(Size dimensions, int? seed)
         {
-            // Create as Rgba32 first (L8 doesn't support drawing operations properly)
-            using var rgbaImage = new Image<Rgba32>(dimensions.Width, dimensions.Height);
-
-            // Set white background
-            rgbaImage.Mutate(ctx => ctx.BackgroundColor(Color.White));
-
-            // Disable anti-aliasing for crisp 1-bit rendering
-            var drawingOptions = new DrawingOptions
-            {
-                GraphicsOptions = new GraphicsOptions
-                {
-                    Antialias = false // Prevents gray pixels that inflate density
-                }
-            };
-
-            // Draw Flat symbol (vertical stem with rounded bulb at bottom)
-            // Added 2px top padding (Y=2 instead of Y=0) to prevent clipping
+            var rgbaImage = new Image<Rgba32>(dimensions.Width, dimensions.Height);
             rgbaImage.Mutate(ctx =>
             {
-                // Vertical stem (left side, 1px wide, with top padding)
-                ctx.Fill(drawingOptions, Color.Black, new RectangleF(1, 2, 1, dimensions.Height - 10));
+                ctx.Fill(Color.White);
 
-                // Use PathBuilder for smooth bowl curve
-                var bowlPath = new PathBuilder()
-                    .MoveTo(new PointF(5, dimensions.Height - 10))              // Start at stem connection
-                    .CubicBezierTo(                      // Smooth curve for bowl
-                        new PointF(7, dimensions.Height - 12),      // Control point 1
-                        new PointF(9, dimensions.Height - 10),     // Control point 2
-                        new PointF(9, dimensions.Height - 7))      // End of curve
-                    .LineTo(new PointF(9, dimensions.Height - 6))              // Bottom of bowl
-                    .CubicBezierTo(                      // Return curve
-                        new PointF(9, dimensions.Height - 5),
-                        new PointF(7, dimensions.Height - 4),
-                        new PointF(5, dimensions.Height - 6))       // Back to stem
-                    .CloseFigure()
-                    .Build();
+                var brush = Brushes.Solid(Color.Black);
 
-                var pen = Pens.Solid(Color.Black, 1);
-                ctx.Draw(drawingOptions, pen, bowlPath);
+                // Draw the vertical stem
+                ctx.FillPolygon(brush, new PointF[] {
+                    new PointF(dimensions.Width * 0.4f, dimensions.Height * 0.1f),
+                    new PointF(dimensions.Width * 0.5f, dimensions.Height * 0.1f),
+                    new PointF(dimensions.Width * 0.5f, dimensions.Height * 0.9f),
+                    new PointF(dimensions.Width * 0.4f, dimensions.Height * 0.9f)
+                });
+
+                // Draw the bulb
+                ctx.FillPolygon(brush, new PointF[] {
+                    new PointF(dimensions.Width * 0.5f, dimensions.Height * 0.6f),
+                    new PointF(dimensions.Width * 0.8f, dimensions.Height * 0.7f),
+                    new PointF(dimensions.Width * 0.5f, dimensions.Height * 0.9f)
+                });
             });
-
-            // Convert to L8 grayscale
             return rgbaImage.CloneAs<L8>();
         }
     }

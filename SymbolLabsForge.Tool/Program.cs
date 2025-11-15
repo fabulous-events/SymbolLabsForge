@@ -31,11 +31,12 @@ namespace SymbolLabsForge.Tool
 
             // Register SymbolForge and its dependencies
             services.AddSymbolForge(configuration);
+            services.Configure<SymbolLabsForge.Configuration.ForgePathSettings>(configuration.GetSection(SymbolLabsForge.Configuration.ForgePathSettings.SectionName));
+
 
             // Register application-specific services
             services.AddTransient<CapsuleExporter>();
-            services.AddSingleton(provider => 
-                new CapsuleRegistryManager(Path.Combine(Application.StartupPath, "CapsuleRegistry.json")));
+            services.AddSingleton<CapsuleRegistryManager>();
 
             // Register the forms
             services.AddTransient<FormSymbolRequest>();

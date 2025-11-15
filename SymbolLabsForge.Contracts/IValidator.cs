@@ -12,6 +12,6 @@ namespace SymbolLabsForge.Contracts
     public interface IValidator
     {
         string Name { get; }
-        ValidationResult Validate(SymbolCapsule capsule, QualityMetrics metrics);
+        ValidationResult Validate(SymbolCapsule? capsule, QualityMetrics metrics);
     }
 }

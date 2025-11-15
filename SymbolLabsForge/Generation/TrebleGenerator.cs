@@ -5,11 +5,11 @@ using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using SymbolLabsForge.Contracts;
 
-namespace SymbolLabsForge.Generators
+namespace SymbolLabsForge.Generation
 {
-    public class ClefGenerator : ISymbolGenerator
+    public class TrebleGenerator : ISymbolGenerator
     {
-        public SymbolType SupportedType => SymbolType.Clef;
+        public SymbolType SupportedType => SymbolType.Treble;
 
         public Image<L8> GenerateRawImage(Size dimensions, int? seed)
         {
@@ -42,6 +42,7 @@ namespace SymbolLabsForge.Generators
                     new PointF(dimensions.Width * 0.3f, dimensions.Height * 0.8f)
                 });
             });
+
             return rgbaImage.CloneAs<L8>();
         }
     }

@@ -9,7 +9,7 @@ namespace SymbolLabsForge.Tests.Contracts
         public void WithKeyword_CreatesNewInstanceWithModifiedProperty()
         {
             // Arrange
-            var original = new TemplateMetadata { TemplateName = "original" };
+            var original = new TemplateMetadata { TemplateName = "original", SymbolType = SymbolType.Unknown };
 
             // Act
             var modified = original with { TemplateName = "modified" };

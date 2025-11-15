@@ -9,5 +9,14 @@
 
 namespace SymbolLabsForge.Contracts
 {
-    public enum SymbolType { Flat, Sharp, Natural, DoubleSharp }
+    public enum SymbolType
+    {
+        Unknown,
+        Flat,
+        Sharp,
+        Natural,
+        Treble,
+        DoubleSharp,
+        Clef
+    }
 }

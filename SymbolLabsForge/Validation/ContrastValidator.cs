@@ -15,39 +15,47 @@ namespace SymbolLabsForge.Validation
     public class ContrastValidator : IValidator
     {
         public string Name => "ContrastValidator";
-        private const float ContrastThreshold = 0.5f; // 50% contrast
+        private const float MinPixelRatioThreshold = 0.1f; // 10%
 
-        public ValidationResult Validate(SymbolCapsule capsule, QualityMetrics metrics)
+        public ValidationResult Validate(SymbolCapsule? capsule, QualityMetrics metrics)
         {
-            if (capsule?.TemplateImage == null)
+            if (capsule == null || capsule.TemplateImage == null)
             {
-                return new ValidationResult(false, Name, "Input capsule or image is null.");
+                return new ValidationResult(false, Name, "Capsule or its image cannot be null.");
             }
 
-            var image = capsule.TemplateImage;
-            byte minPixel = 255;
-            byte maxPixel = 0;
-
-            for (int y = 0; y < image.Height; y++)
+            int totalPixels = capsule.TemplateImage.Width * capsule.TemplateImage.Height;
+            if (totalPixels == 0)
             {
-                for (int x = 0; x < image.Width; x++)
+                return new ValidationResult(false, Name, "Image has zero pixels.");
+            }
+
+            int darkPixels = 0;
+            capsule.TemplateImage.ProcessPixelRows(accessor =>
+            {
+                for (int y = 0; y < accessor.Height; y++)
                 {
-                    byte pixelValue = image[x, y].PackedValue;
-                    if (pixelValue < minPixel) minPixel = pixelValue;
-                    if (pixelValue > maxPixel) maxPixel = pixelValue;
+                    foreach (var pixel in accessor.GetRowSpan(y))
+                    {
+                        if (pixel.PackedValue < 128)
+                        {
+                            darkPixels++;
+                        }
+                    }
                 }
+            });
+
+            float darkRatio = (float)darkPixels / totalPixels;
+            float lightRatio = 1 - darkRatio;
+
+            if (darkRatio < MinPixelRatioThreshold)
+            {
+                return new ValidationResult(false, Name, $"Image lacks dark pixels. Dark pixel ratio ({darkRatio:P1}) is below the required threshold of {MinPixelRatioThreshold:P1}.");
             }
 
-            if (maxPixel == minPixel)
+            if (lightRatio < MinPixelRatioThreshold)
             {
-                return new ValidationResult(false, Name, "Image has no contrast (all pixels are the same color).");
-            }
-
-            float contrast = (float)(maxPixel - minPixel) / 255f;
-
-            if (contrast < ContrastThreshold)
-            {
-                return new ValidationResult(false, Name, $"Contrast ({contrast:P1}) is below the required threshold of {ContrastThreshold:P1}.");
+                return new ValidationResult(false, Name, $"Image lacks light pixels. Light pixel ratio ({lightRatio:P1}) is below the required threshold of {MinPixelRatioThreshold:P1}.");
             }
 
             return new ValidationResult(true, Name);

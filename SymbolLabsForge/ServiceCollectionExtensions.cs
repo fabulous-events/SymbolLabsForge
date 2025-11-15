@@ -10,6 +10,7 @@ using SymbolLabsForge.Preprocessing;
 using SymbolLabsForge.Generation;
 using SymbolLabsForge.Configuration;
 using SymbolLabsForge.Services;
+using SymbolLabsForge.Validation;
 
 namespace SymbolLabsForge
 {
@@ -19,6 +20,7 @@ namespace SymbolLabsForge
         {
             // Register settings
             services.Configure<AssetSettings>(configuration.GetSection("AssetSettings"));
+            services.Configure<DensityValidatorSettings>(configuration.GetSection(DensityValidatorSettings.SectionName));
 
             // Register the main orchestrator
             services.AddTransient<ISymbolForge, SymbolForge>();
@@ -26,7 +28,6 @@ namespace SymbolLabsForge
             // Register asset services
             services.AddSingleton<IAssetPathProvider, AssetPathProvider>();
 
-            services.AddSingleton<IPreprocessingStep, SkeletonizationProcessor>();
             services.AddSingleton<IMorphEngine, PixelBlendMorphEngine>();
 
             // Register all generators and validators from the assembly
