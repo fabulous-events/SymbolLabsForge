@@ -1,0 +1,175 @@
+#===============================================================
+# File: docker-compose.yml
+# Author: Claude (Phase 11 - Azure Deployment)
+# Date: 2025-11-15
+# Purpose: Docker Compose configuration for local development and testing.
+#
+# PHASE 11: LOCAL TESTING WORKFLOW
+#   - Single command to build and run application
+#   - Port mapping for browser access (localhost:8080)
+#   - Volume mounts for live code reload (optional)
+#   - Environment variable configuration
+#
+# WHY THIS MATTERS:
+#   - Simplifies local Docker testing (docker compose up vs. docker build + docker run)
+#   - Enables rapid iteration (rebuild with single command)
+#   - Demonstrates Docker Compose patterns for multi-container apps
+#
+# TEACHING VALUE:
+#   - Undergraduate: Docker Compose basics, service definitions
+#   - Graduate: Container orchestration, environment configuration
+#   - PhD: Local development workflows, production parity patterns
+#
+# AUDIENCE: Undergraduate / Graduate (Docker fundamentals)
+#===============================================================
+
+version: '3.8'
+
+services:
+  #=============================================================
+  # SymbolLabsForge Web Application
+  # - Blazor Server UI
+  # - Port 8080 exposed for browser access
+  #=============================================================
+  web:
+    # Build configuration
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Container name for easy reference
+    container_name: symbollabsforge-web
+
+    # Port mapping: host:container
+    # WHY: Access via http://localhost:8080
+    ports:
+      - "8080:8080"
+
+    # Environment variables
+    # WHY: Override default settings for local development
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_LOGGING__CONSOLE__DISABLECOLORS=false
+
+    # Restart policy
+    # WHY: Automatically restart if container crashes
+    restart: unless-stopped
+
+    # Health check
+    # WHY: Verify application is running correctly
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits (optional - uncomment for testing)
+    # WHY: Prevent container from consuming excessive resources
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '1.0'
+    #       memory: 512M
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 256M
+
+#===============================================================
+# USAGE INSTRUCTIONS:
+#
+# 1. Start application:
+#    docker compose up
+#    (or: docker compose up -d for detached mode)
+#
+# 2. Rebuild and start:
+#    docker compose up --build
+#
+# 3. View logs:
+#    docker compose logs -f web
+#
+# 4. Stop application:
+#    docker compose down
+#
+# 5. Stop and remove volumes:
+#    docker compose down -v
+#
+# 6. Check service status:
+#    docker compose ps
+#
+# 7. Run health check manually:
+#    curl http://localhost:8080/health
+#
+#===============================================================
+# TEACHING MOMENTS:
+#
+# 1. Port Mapping:
+#    - Format: "host_port:container_port"
+#    - Example: "8080:8080" maps localhost:8080 → container:8080
+#    - Change host port: "3000:8080" → access via localhost:3000
+#
+# 2. Environment Variables:
+#    - ASPNETCORE_ENVIRONMENT: Development vs. Production
+#    - ASPNETCORE_URLS: Which port/interface to bind
+#    - Override defaults without modifying Dockerfile
+#
+# 3. Health Checks:
+#    - Docker pings /health endpoint every 30 seconds
+#    - Container marked unhealthy if 3 consecutive failures
+#    - Azure App Service uses similar health check mechanism
+#
+# 4. Restart Policies:
+#    - "no": Never restart (default)
+#    - "always": Always restart
+#    - "on-failure": Restart only on crash
+#    - "unless-stopped": Restart unless manually stopped
+#
+# 5. Build Context:
+#    - context: "." means build from current directory
+#    - dockerfile: "Dockerfile" specifies which Dockerfile to use
+#    - Relative paths resolved from context directory
+#
+#===============================================================
+# PRODUCTION VS. DEVELOPMENT:
+#
+# Local Development (this file):
+#   - ASPNETCORE_ENVIRONMENT=Development
+#   - Port 8080 on localhost
+#   - Health checks enabled
+#   - Logs to console
+#
+# Azure Production (deployed):
+#   - ASPNETCORE_ENVIRONMENT=Production
+#   - Port 8080 (internal)
+#   - Health checks via Azure monitoring
+#   - Logs to Application Insights
+#
+#===============================================================
+# ADVANCED: Multi-Container Setup (Future)
+#
+# When adding database, cache, or other services:
+#
+# services:
+#   web:
+#     # ... (existing config)
+#     depends_on:
+#       - db
+#       - redis
+#
+#   db:
+#     image: postgres:15
+#     environment:
+#       POSTGRES_PASSWORD: devpassword
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#
+#   redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6379:6379"
+#
+# volumes:
+#   postgres_data:
+#
+#===============================================================

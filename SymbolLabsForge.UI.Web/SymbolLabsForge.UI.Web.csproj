@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SymbolLabsForge.Testing.Utilities\SymbolLabsForge.Testing.Utilities.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge.ImageProcessing.Utilities\SymbolLabsForge.ImageProcessing.Utilities.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge\SymbolLabsForge.csproj" />
+    <ProjectReference Include="..\SymbolLabsForge.Contracts\SymbolLabsForge.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="QuestPDF" Version="2025.7.4" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

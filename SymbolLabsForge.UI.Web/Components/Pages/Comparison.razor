@@ -1,0 +1,541 @@
+@page "/comparison"
+@rendermode InteractiveServer
+@using SymbolLabsForge.UI.Web.Services
+@using SixLabors.ImageSharp
+@using SixLabors.ImageSharp.PixelFormats
+@inject ComparisonService ComparisonService
+@inject SymbolGenerationService GenerationService
+@inject GeneratedSymbolState SymbolState
+@inject PdfExportService PdfExportService
+@inject IJSRuntime JSRuntime
+@inject ILogger<Comparison> Logger
+
+@*
+===============================================================
+File: Comparison.razor
+Author: Claude (Phase 10.3 - Blazor Component Development)
+Date: 2025-11-15
+Purpose: Symbol comparison UI - upload, configure tolerance, view results.
+
+PHASE 10.3: COMPARISON COMPONENT
+  - Upload symbol images (PNG/JPG)
+  - Select canonical symbol type
+  - Configure tolerance slider (0-10%)
+  - Display comparison results with diff visualization
+  - Error handling and validation feedback
+
+WHY THIS MATTERS:
+  - Demonstrates Blazor Server interactive components
+  - Students learn file upload, form validation, async operations
+  - Shows integration of service layer with UI
+  - Real-time updates via SignalR (tolerance slider feedback)
+
+TEACHING VALUE:
+  - Undergraduate: Blazor components, file upload, event handling
+  - Graduate: Service integration, async workflows, error handling
+  - PhD: Real-time updates, performance optimization, UX design
+
+AUDIENCE: Undergraduate / Graduate (Blazor UI development)
+===============================================================
+*@
+
+<PageTitle>Symbol Comparison - SymbolLabsForge</PageTitle>
+
+<h1>Symbol Comparison Tool</h1>
+
+@if (showTutorial)
+{
+    <div class="tutorial-overlay">
+        <div class="tutorial-content">
+            <h3>Welcome to SymbolLabsForge!</h3>
+            <p>This tool compares your musical symbols against canonical outputs.</p>
+            <p><strong>You'll learn:</strong></p>
+            <ul>
+                <li>Visual regression testing</li>
+                <li>Tolerance-based comparison</li>
+                <li>Statistical similarity metrics</li>
+            </ul>
+            <button class="btn btn-primary" @onclick="() => showTutorial = false">Start Tutorial</button>
+            <button class="btn btn-secondary" @onclick="() => { showTutorial = false; skipTutorial = true; }">Skip</button>
+        </div>
+    </div>
+}
+
+<div class="comparison-container">
+    @* Step 1: Upload Symbol *@
+    <div class="step-card @(currentStep >= 1 ? "active" : "")">
+        <h3>Step 1: Upload Your Symbol</h3>
+        @if (!skipTutorial && currentStep == 1)
+        {
+            <div class="tooltip-inline">
+                <strong>ℹ️ Tip:</strong> Upload a PNG or JPG image of your musical symbol (sharp, flat, natural).
+                <br/>Supported formats: PNG, JPG. Max size: 5 MB.
+            </div>
+        }
+
+        <div class="upload-section">
+            <InputFile OnChange="HandleFileSelected" accept=".png,.jpg,.jpeg" disabled="@isProcessing" />
+
+            @if (uploadedFileName != null)
+            {
+                <div class="upload-preview">
+                    <p><strong>Selected:</strong> @uploadedFileName</p>
+                    @if (uploadedImageData != null)
+                    {
+                        <img src="@uploadedImageDataUrl" alt="Uploaded symbol" style="max-width: 150px; border: 1px solid #ccc;" />
+                        <p class="text-muted">@uploadedImageWidth×@uploadedImageHeight pixels, L8 grayscale</p>
+                    }
+                </div>
+            }
+
+            @if (uploadError != null)
+            {
+                <div class="alert alert-danger">
+                    ❌ @uploadError
+                    <br/><strong>Try:</strong>
+                    <ul>
+                        <li>Upload a different image with visible content</li>
+                        <li>Or use the <a href="/generator">Synthetic Symbol Generator</a></li>
+                    </ul>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Step 2: Select Canonical Symbol *@
+    <div class="step-card @(currentStep >= 2 ? "active" : "")">
+        <h3>Step 2: Select Canonical Symbol</h3>
+        @if (!skipTutorial && currentStep == 2)
+        {
+            <div class="tooltip-inline">
+                <strong>ℹ️ Tip:</strong> Choose which symbol type you uploaded.
+                <br/>The canonical symbol is SymbolLabsForge's "perfect" reference output.
+            </div>
+        }
+
+        <div class="symbol-selector">
+            <label>Symbol Type:</label>
+            <select @bind="selectedSymbolType" disabled="@(uploadedImageData == null || isProcessing)">
+                <option value="Sharp">Sharp (♯)</option>
+                <option value="Flat">Flat (♭)</option>
+                <option value="Natural">Natural (♮)</option>
+                <option value="DoubleSharp">Double Sharp (𝄪)</option>
+                <option value="Treble">Treble Clef (𝄞)</option>
+            </select>
+
+            @if (uploadedImageData != null && selectedSymbolType != null)
+            {
+                <div class="canonical-preview">
+                    <p><strong>Canonical Preview:</strong></p>
+                    <p class="text-muted">Default sizes: Sharp (20×50), Flat (12×30), Natural (20×50)</p>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Step 3: Configure Tolerance *@
+    <div class="step-card @(currentStep >= 3 ? "active" : "")">
+        <h3>Step 3: Configure Tolerance</h3>
+        @if (!skipTutorial && currentStep == 3)
+        {
+            <div class="tooltip-inline">
+                <strong>ℹ️ Tip:</strong> Tolerance controls how strict the comparison is.
+                <br/><strong>0.0%</strong> = exact match, <strong>1.0%</strong> = typical (default), <strong>5.0%</strong> = lenient
+            </div>
+        }
+
+        <div class="tolerance-slider">
+            <label for="tolerance">Tolerance: <strong>@((tolerance * 100).ToString("F1"))%</strong></label>
+            <input type="range" id="tolerance" class="form-range"
+                   min="0" max="0.1" step="0.001"
+                   @bind="tolerance" @bind:event="oninput"
+                   disabled="@(uploadedImageData == null || isProcessing)" />
+            <small class="text-muted">
+                0.0% = exact match | 1.0% = default | 10.0% = very lenient
+            </small>
+        </div>
+    </div>
+
+    @* Compare Button *@
+    <div class="action-section">
+        <button class="btn btn-primary btn-lg" @onclick="CompareSymbols"
+                disabled="@(uploadedImageData == null || selectedSymbolType == null || isProcessing)">
+            @if (isProcessing)
+            {
+                <span class="spinner-border spinner-border-sm" role="status"></span>
+                <span> Processing...</span>
+            }
+            else
+            {
+                <span>🔍 Compare Symbols</span>
+            }
+        </button>
+    </div>
+
+    @* Results Section *@
+    @if (comparisonResult != null)
+    {
+        <div class="results-section">
+            <hr />
+            <h2>Results</h2>
+
+            @if (comparisonResult.ErrorMessage != null)
+            {
+                <div class="alert alert-danger">
+                    <h4>❌ Comparison Failed</h4>
+                    <p>@comparisonResult.ErrorMessage</p>
+                </div>
+            }
+            else
+            {
+                <div class="result-card @(comparisonResult.Similar ? "pass" : "fail")">
+                    <h3>
+                        @if (comparisonResult.Similar)
+                        {
+                            <span>✅ PASS - Your symbol matches the canonical!</span>
+                        }
+                        else
+                        {
+                            <span>❌ FAIL - Symbol differs significantly</span>
+                        }
+                    </h3>
+
+                    <div class="result-metrics">
+                        <div class="metric">
+                            <label>Similarity:</label>
+                            <strong>@comparisonResult.SimilarityPercent.ToString("F2")%</strong>
+                        </div>
+                        <div class="metric">
+                            <label>Difference:</label>
+                            <strong>@comparisonResult.DifferencePercent.ToString("F2")%</strong>
+                        </div>
+                        <div class="metric">
+                            <label>Threshold:</label>
+                            <strong>@(((1 - tolerance) * 100).ToString("F1"))% similar required</strong>
+                        </div>
+                    </div>
+
+                    <div class="statistics">
+                        <h4>Statistics</h4>
+                        <ul>
+                            <li><strong>Total Pixels:</strong> @comparisonResult.Statistics?.TotalPixels.ToString("N0")</li>
+                            <li><strong>Different Pixels:</strong> @comparisonResult.Statistics?.DifferentPixels.ToString("N0") (@comparisonResult.Statistics?.DifferencePercent.ToString("F2")%)</li>
+                            <li><strong>Max Pixel Error:</strong> @comparisonResult.Statistics?.MaxError / 255 (intensity difference)</li>
+                            <li><strong>Mean Pixel Error:</strong> @comparisonResult.Statistics?.MeanError.ToString("F2") / 255</li>
+                        </ul>
+                    </div>
+
+                    <div class="visual-diff">
+                        <h4>Visual Diff</h4>
+                        @if (comparisonResult.DiffImagePath != null)
+                        {
+                            <img src="@comparisonResult.DiffImagePath" alt="Diff visualization" class="diff-image" />
+                            <p class="text-muted">Red pixels show differences, gray pixels match perfectly.</p>
+                            <a href="@comparisonResult.DiffImagePath" download class="btn btn-secondary">💾 Download Diff Image</a>
+                        }
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="btn btn-success" @onclick="DownloadPdfReport" disabled="@isGeneratingPdf">
+                            @if (isGeneratingPdf)
+                            {
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                                <span> Generating PDF...</span>
+                            }
+                            else
+                            {
+                                <span>📄 Download PDF Report</span>
+                            }
+                        </button>
+                        <button class="btn btn-primary" @onclick="ResetComparison">Try Another Symbol</button>
+                        <a href="/generator" class="btn btn-secondary">Generate Synthetic Symbol</a>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    // State management
+    private bool showTutorial = true;
+    private bool skipTutorial = false;
+    private int currentStep = 1;
+    private bool isProcessing = false;
+    private bool isGeneratingPdf = false;
+
+    // Upload state
+    private string? uploadedFileName;
+    private byte[]? uploadedImageData;
+    private string? uploadedImageDataUrl;
+    private int uploadedImageWidth;
+    private int uploadedImageHeight;
+    private string? uploadError;
+
+    // Configuration state
+    private string selectedSymbolType = "Sharp";
+    private double tolerance = 0.01; // 1% default
+
+    // Results state
+    private ComparisonResult? comparisonResult;
+
+    /// <summary>
+    /// Component initialization - checks for state transfer from Generator page.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Phase 10.4: State Transfer Consumption</b></para>
+    /// <para>This method consumes state from GeneratedSymbolState service if available.</para>
+    ///
+    /// <para><b>Teaching Value (Graduate):</b></para>
+    /// <para>Students learn lifecycle method execution order:</para>
+    /// <list type="number">
+    /// <item>Constructor executes (field initializers run)</item>
+    /// <item>OnInitialized() executes (DI services available)</item>
+    /// <item>OnParametersSet() executes (if parameters changed)</item>
+    /// <item>OnAfterRender() executes (UI rendered)</item>
+    /// </list>
+    ///
+    /// <para><b>Why OnInitialized() Not OnParametersSet():</b></para>
+    /// <para>State transfer happens via service (not route parameters), so OnInitialized() is correct.
+    /// OnParametersSet() would be used if state came from URL query params.</para>
+    ///
+    /// <para><b>State Consumption Pattern:</b></para>
+    /// <list type="bullet">
+    /// <item>Check SymbolState.HasData (defensive programming)</item>
+    /// <item>Populate component state from service state</item>
+    /// <item>Generate preview (data URL for img src)</item>
+    /// <item>Clear service state (one-time consumption)</item>
+    /// <item>Advance workflow to Step 2 (skip upload step)</item>
+    /// </list>
+    /// </remarks>
+    protected override void OnInitialized()
+    {
+        // Check if we received state from Generator page
+        if (SymbolState.HasData)
+        {
+            try
+            {
+                Logger.LogInformation("Consuming transferred symbol state: {Diagnostics}",
+                    SymbolState.GetDiagnostics());
+
+                // Populate upload state from transferred data
+                uploadedImageData = SymbolState.ImageData;
+                selectedSymbolType = SymbolState.SymbolType!; // Non-null guaranteed by HasData
+                uploadedImageWidth = SymbolState.Width;
+                uploadedImageHeight = SymbolState.Height;
+
+                // Generate preview data URL
+                var base64 = Convert.ToBase64String(uploadedImageData!);
+                uploadedImageDataUrl = $"data:image/png;base64,{base64}";
+
+                // Set filename for display
+                uploadedFileName = $"generated_{selectedSymbolType}_{SymbolState.GeneratedAt:yyyyMMddHHmmss}.png";
+
+                // Advance to Step 2 (symbol type already selected)
+                currentStep = 2;
+
+                Logger.LogInformation("Symbol state consumed successfully: {SymbolType}, {Size}",
+                    selectedSymbolType, $"{uploadedImageWidth}×{uploadedImageHeight}");
+
+                // Clear state to prevent reuse (one-time consumption pattern)
+                SymbolState.Clear();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to consume symbol state");
+                // Reset to clean state - user can upload manually
+                uploadError = "Failed to load generated symbol. Please upload manually or generate again.";
+                SymbolState.Clear(); // Ensure state is cleared even on error
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles file selection and validation.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Teaching Value (Undergraduate):</b></para>
+    /// <para>Students learn Blazor file upload using InputFile component.</para>
+    /// <para>Demonstrates async file reading with IBrowserFile.OpenReadStream().</para>
+    /// </remarks>
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        uploadError = null;
+        currentStep = Math.Max(currentStep, 2);
+
+        var file = e.File;
+        uploadedFileName = file.Name;
+
+        try
+        {
+            // Validate file size (5 MB max)
+            const long maxFileSize = 5 * 1024 * 1024; // 5 MB
+            if (file.Size > maxFileSize)
+            {
+                uploadError = $"File too large: {file.Size / 1024 / 1024:F1} MB. Max: 5 MB.";
+                return;
+            }
+
+            // Validate file format
+            var allowedExtensions = new[] { ".png", ".jpg", ".jpeg" };
+            var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+            if (!allowedExtensions.Contains(extension))
+            {
+                uploadError = $"Unsupported format: {extension}. Allowed: PNG, JPG.";
+                return;
+            }
+
+            // Read file into memory
+            using var stream = file.OpenReadStream(maxFileSize);
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            uploadedImageData = ms.ToArray();
+
+            // Create data URL for preview
+            var base64 = Convert.ToBase64String(uploadedImageData);
+            uploadedImageDataUrl = $"data:image/{extension.TrimStart('.')};base64,{base64}";
+
+            // Load image to get dimensions
+            using var image = Image.Load<L8>(uploadedImageData);
+            uploadedImageWidth = image.Width;
+            uploadedImageHeight = image.Height;
+
+            Logger.LogInformation("File uploaded: {FileName}, size: {Size} bytes, dimensions: {Width}×{Height}",
+                file.Name, file.Size, uploadedImageWidth, uploadedImageHeight);
+        }
+        catch (Exception ex)
+        {
+            uploadError = $"Failed to load image: {ex.Message}";
+            Logger.LogError(ex, "File upload failed: {FileName}", file.Name);
+        }
+    }
+
+    /// <summary>
+    /// Performs symbol comparison using ComparisonService.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Teaching Value (Graduate):</b></para>
+    /// <para>Students learn async service invocation from Blazor components.</para>
+    /// <para>Demonstrates error handling and state management in interactive components.</para>
+    /// </remarks>
+    private async Task CompareSymbols()
+    {
+        if (uploadedImageData == null || selectedSymbolType == null)
+        {
+            return;
+        }
+
+        isProcessing = true;
+        comparisonResult = null;
+        currentStep = Math.Max(currentStep, 3);
+
+        try
+        {
+            Logger.LogInformation("Starting comparison: {SymbolType}, tolerance: {Tolerance}%",
+                selectedSymbolType, tolerance * 100);
+
+            // Load uploaded image
+            using var uploadedImage = Image.Load<L8>(uploadedImageData);
+
+            // Parse symbol type enum
+            if (!Enum.TryParse<SymbolType>(selectedSymbolType, out var symbolType))
+            {
+                comparisonResult = ComparisonResult.Failure($"Invalid symbol type: {selectedSymbolType}");
+                return;
+            }
+
+            // Invoke comparison service (Phase 10.2)
+            comparisonResult = await ComparisonService.CompareSymbolAsync(uploadedImage, symbolType, tolerance);
+
+            Logger.LogInformation("Comparison complete: {Result}, similarity: {Similarity}%",
+                comparisonResult.Similar ? "PASS" : "FAIL", comparisonResult.SimilarityPercent);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Comparison failed");
+            comparisonResult = ComparisonResult.Failure($"Unexpected error: {ex.Message}");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    /// <summary>
+    /// Downloads comparison result as PDF report.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Phase 10.5: PDF Export</b></para>
+    /// <para>Students learn how to:</para>
+    /// <list type="number">
+    /// <item>Generate PDFs from service layer (PdfExportService)</item>
+    /// <item>Trigger browser downloads using JavaScript interop</item>
+    /// <item>Handle async operations with loading states</item>
+    /// <item>Provide user feedback during document generation</item>
+    /// </list>
+    /// <para><b>Teaching Value (Graduate):</b></para>
+    /// <para>Demonstrates JavaScript interop for browser file downloads.</para>
+    /// <para>Shows async error handling with try/finally for state cleanup.</para>
+    /// </remarks>
+    private async Task DownloadPdfReport()
+    {
+        if (comparisonResult == null || selectedSymbolType == null)
+        {
+            return;
+        }
+
+        isGeneratingPdf = true;
+
+        try
+        {
+            Logger.LogInformation("Generating PDF report for {SymbolType}", selectedSymbolType);
+
+            // Parse symbol type enum
+            if (!Enum.TryParse<SymbolType>(selectedSymbolType, out var symbolType))
+            {
+                Logger.LogError("Invalid symbol type: {SymbolType}", selectedSymbolType);
+                return;
+            }
+
+            // Generate PDF using PdfExportService
+            byte[] pdfBytes = await PdfExportService.ExportSingleComparisonAsync(
+                comparisonResult,
+                symbolType,
+                tolerance);
+
+            // Create filename: comparison_Sharp_20251115120000.pdf
+            string fileName = $"comparison_{selectedSymbolType}_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+
+            // Convert to base64 for JavaScript download
+            string base64Pdf = Convert.ToBase64String(pdfBytes);
+            string dataUrl = $"data:application/pdf;base64,{base64Pdf}";
+
+            // Trigger browser download using JavaScript interop
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, dataUrl);
+
+            Logger.LogInformation("PDF report downloaded: {FileName}, {Size} bytes", fileName, pdfBytes.Length);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to generate PDF report");
+            // TODO: Show error message to user (Phase 10.5 enhancement)
+        }
+        finally
+        {
+            isGeneratingPdf = false;
+        }
+    }
+
+    /// <summary>
+    /// Resets comparison state for new upload.
+    /// </summary>
+    private void ResetComparison()
+    {
+        uploadedFileName = null;
+        uploadedImageData = null;
+        uploadedImageDataUrl = null;
+        uploadError = null;
+        comparisonResult = null;
+        currentStep = 1;
+    }
+}

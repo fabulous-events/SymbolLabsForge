@@ -1,0 +1,592 @@
+@page "/batch-comparison"
+@rendermode InteractiveServer
+@using SymbolLabsForge.UI.Web.Services
+@using SixLabors.ImageSharp
+@using SixLabors.ImageSharp.PixelFormats
+@inject BatchComparisonService BatchService
+@inject PdfExportService PdfExportService
+@inject IJSRuntime JSRuntime
+@inject ILogger<BatchComparison> Logger
+
+@*
+===============================================================
+File: BatchComparison.razor
+Author: Claude (Phase 10.5 - Batch Comparison UI)
+Date: 2025-11-15
+Purpose: Batch symbol comparison UI - upload multiple symbols, parallel processing.
+
+PHASE 10.5: BATCH COMPARISON COMPONENT
+  - Upload multiple symbol images (2-10 symbols)
+  - Real-time progress indicators during parallel processing
+  - Display batch summary statistics
+  - Individual comparison results with diff visualizations
+  - Batch PDF report download
+
+WHY THIS MATTERS:
+  - Students can compare multiple symbols in one session
+  - Demonstrates parallel processing concepts visually
+  - Shows how backend concurrency surfaces in UI workflows
+  - Real-time updates via SignalR (progress reporting)
+
+TEACHING VALUE:
+  - Undergraduate: Multi-file upload, progress indicators, batch operations
+  - Graduate: Parallel processing visualization, progress reporting patterns
+  - PhD: Performance analysis, concurrency trade-offs, resource management
+
+AUDIENCE: Graduate / PhD (parallel processing, batch operations)
+===============================================================
+*@
+
+<PageTitle>Batch Comparison - SymbolLabsForge</PageTitle>
+
+<h1>Batch Symbol Comparison</h1>
+
+@if (showTutorial)
+{
+    <div class="tutorial-overlay">
+        <div class="tutorial-content">
+            <h3>Batch Comparison Tool</h3>
+            <p>Compare multiple symbols simultaneously using parallel processing.</p>
+            <p><strong>You'll learn:</strong></p>
+            <ul>
+                <li>Batch operations (2-10 symbols at once)</li>
+                <li>Parallel processing with controlled concurrency</li>
+                <li>Progress reporting and error isolation</li>
+                <li>Aggregate statistics and batch reporting</li>
+            </ul>
+            <button class="btn btn-primary" @onclick="() => showTutorial = false">Start Tutorial</button>
+            <button class="btn btn-secondary" @onclick="() => { showTutorial = false; skipTutorial = true; }">Skip</button>
+        </div>
+    </div>
+}
+
+<div class="comparison-container">
+    @* Step 1: Upload Multiple Symbols *@
+    <div class="step-card @(currentStep >= 1 ? "active" : "")">
+        <h3>Step 1: Upload Symbol Images (2-10 symbols)</h3>
+        @if (!skipTutorial && currentStep == 1)
+        {
+            <div class="tooltip-inline">
+                <strong>ℹ️ Tip:</strong> Select multiple PNG or JPG images (Ctrl+Click or Shift+Click).
+                <br/>Supported: 2-10 symbols, max 5 MB per file.
+            </div>
+        }
+
+        <div class="upload-section">
+            <InputFile OnChange="HandleMultipleFilesSelected" accept=".png,.jpg,.jpeg" multiple disabled="@isProcessing" />
+
+            @if (uploadedFiles.Count > 0)
+            {
+                <div class="upload-preview">
+                    <p><strong>Selected:</strong> @uploadedFiles.Count symbol(s)</p>
+                    <ul>
+                        @foreach (var file in uploadedFiles)
+                        {
+                            <li>@file.FileName (@file.SymbolType) — @file.Width×@file.Height pixels</li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            @if (uploadError != null)
+            {
+                <div class="alert alert-danger">
+                    ❌ @uploadError
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Step 2: Select Symbol Types *@
+    @if (uploadedFiles.Count > 0)
+    {
+        <div class="step-card @(currentStep >= 2 ? "active" : "")">
+            <h3>Step 2: Assign Symbol Types</h3>
+            <div class="symbol-type-grid">
+                @for (int i = 0; i < uploadedFiles.Count; i++)
+                {
+                    int index = i; // Capture for closure
+                    <div class="symbol-type-row">
+                        <span class="file-name">@uploadedFiles[index].FileName:</span>
+                        <select @bind="uploadedFiles[index].SymbolType" class="form-select" disabled="@isProcessing">
+                            <option value="Sharp">Sharp (♯)</option>
+                            <option value="Flat">Flat (♭)</option>
+                            <option value="Natural">Natural (♮)</option>
+                            <option value="DoubleSharp">Double Sharp (𝄪)</option>
+                            <option value="Treble">Treble Clef (𝄞)</option>
+                        </select>
+                    </div>
+                }
+            </div>
+        </div>
+
+        @* Step 3: Configure Tolerance *@
+        <div class="step-card @(currentStep >= 3 ? "active" : "")">
+            <h3>Step 3: Set Tolerance</h3>
+            <div class="tolerance-section">
+                <label>
+                    Tolerance: @((tolerance * 100).ToString("F1"))%
+                    <input type="range" min="0" max="0.1" step="0.001" @bind="tolerance" @bind:event="oninput"
+                           disabled="@isProcessing" />
+                </label>
+                <small class="text-muted">
+                    0.0% = exact match | 1.0% = default | 10.0% = very lenient
+                </small>
+            </div>
+        </div>
+
+        @* Phase 10.7: Step 4: Configure Concurrency *@
+        <div class="step-card @(currentStep >= 3 ? "active" : "")">
+            <h3>Step 4: Concurrency Level (Phase 10.7)</h3>
+            @if (!skipTutorial && currentStep == 3)
+            {
+                <div class="tooltip-inline">
+                    <strong>ℹ️ Teaching Moment (Graduate):</strong> Adjust concurrent comparisons (1-8).
+                    <br/>Higher = faster, but more memory usage (~50 MB per comparison).
+                    <br/>See how parallelism affects processing time!
+                </div>
+            }
+            <div class="concurrency-section">
+                <label>
+                    Concurrency Level: @concurrencyLimit
+                    <input type="range" min="1" max="8" step="1" @bind="concurrencyLimit" @bind:event="oninput"
+                           disabled="@isProcessing" />
+                </label>
+                <small class="text-muted">
+                    1 = sequential | 4 = default (balanced) | 8 = max parallelism
+                </small>
+                <div class="estimated-time">
+                    <strong>Estimated Time:</strong> ~@estimatedTimeSeconds.ToString("F1") seconds
+                    (@uploadedFiles.Count symbols ÷ @concurrencyLimit concurrent = @(uploadedFiles.Count / (double)concurrencyLimit).ToString("F1") batches × 2s)
+                </div>
+            </div>
+        </div>
+
+        @* Compare Button *@
+        <div class="action-section">
+            <button class="btn btn-primary btn-lg" @onclick="CompareBatch"
+                    disabled="@(uploadedFiles.Count < 2 || isProcessing)">
+                @if (isProcessing)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                    <span> Processing @completedCount / @uploadedFiles.Count symbols...</span>
+                }
+                else
+                {
+                    <span>🔍 Compare Batch (@uploadedFiles.Count symbols)</span>
+                }
+            </button>
+
+            @* Phase 10.7: Cancel Batch Button *@
+            @if (isProcessing)
+            {
+                <button class="btn btn-danger btn-lg ms-2" @onclick="CancelBatch">
+                    ❌ Cancel Batch
+                </button>
+            }
+        </div>
+
+        @* Progress Indicator *@
+        @if (isProcessing)
+        {
+            <div class="progress-section">
+                <h4>Parallel Processing Progress</h4>
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar"
+                         style="width: @progressPercent%"
+                         aria-valuenow="@completedCount"
+                         aria-valuemin="0"
+                         aria-valuemax="@uploadedFiles.Count">
+                        @completedCount / @uploadedFiles.Count
+                    </div>
+                </div>
+                <p class="text-muted">
+                    <em>Processing up to 4 symbols concurrently (SemaphoreSlim limits parallelism)</em>
+                </p>
+            </div>
+        }
+    }
+
+    @* Results Section *@
+    @if (batchResults != null && batchSummary != null)
+    {
+        <div class="results-section">
+            <hr />
+            <h2>Batch Results</h2>
+
+            @* Summary Statistics *@
+            <div class="summary-card">
+                <h3>Summary Statistics</h3>
+                <div class="summary-metrics">
+                    <div class="metric">
+                        <label>Total Symbols:</label>
+                        <strong>@batchSummary.TotalCount</strong>
+                    </div>
+                    <div class="metric">
+                        <label>Pass Count:</label>
+                        <strong class="text-success">@batchSummary.PassCount (@batchSummary.PassRate.ToString("F1")%)</strong>
+                    </div>
+                    <div class="metric">
+                        <label>Fail Count:</label>
+                        <strong class="text-danger">@batchSummary.FailCount (@((100 - batchSummary.PassRate).ToString("F1"))%)</strong>
+                    </div>
+                    <div class="metric">
+                        <label>Average Similarity:</label>
+                        <strong>@batchSummary.AverageSimilarity.ToString("F2")%</strong>
+                    </div>
+                </div>
+            </div>
+
+            @* Individual Results *@
+            <h3>Individual Comparison Results</h3>
+            @foreach (var result in batchResults)
+            {
+                <div class="result-card @(result.ComparisonResult.Similar ? "pass" : "fail")">
+                    <h4>Symbol @(result.Index + 1): @result.SymbolType</h4>
+
+                    <div class="result-status">
+                        @if (result.ComparisonResult.Similar)
+                        {
+                            <span class="badge bg-success">✅ PASS</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-danger">❌ FAIL</span>
+                        }
+                        <span class="similarity">Similarity: @result.ComparisonResult.SimilarityPercent.ToString("F2")%</span>
+                    </div>
+
+                    @if (result.ComparisonResult.Statistics != null)
+                    {
+                        <div class="mini-statistics">
+                            <span>Different Pixels: @result.ComparisonResult.Statistics.DifferentPixels.ToString("N0")</span>
+                            <span>Max Error: @result.ComparisonResult.Statistics.MaxError / 255</span>
+                        </div>
+                    }
+
+                    @if (result.ComparisonResult.DiffImagePath != null)
+                    {
+                        <details>
+                            <summary>Show Visual Diff</summary>
+                            <img src="@result.ComparisonResult.DiffImagePath" alt="Diff visualization" class="diff-image-small" />
+                        </details>
+                    }
+                </div>
+            }
+
+            @* Batch PDF Download *@
+            <div class="action-buttons">
+                <button class="btn btn-success btn-lg" @onclick="DownloadBatchPdfReport" disabled="@isGeneratingPdf">
+                    @if (isGeneratingPdf)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                        <span> Generating Batch PDF...</span>
+                    }
+                    else
+                    {
+                        <span>📄 Download Batch PDF Report</span>
+                    }
+                </button>
+                <button class="btn btn-primary" @onclick="ResetBatch">Compare New Batch</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // State management
+    private bool showTutorial = true;
+    private bool skipTutorial = false;
+    private int currentStep = 1;
+    private bool isProcessing = false;
+    private bool isGeneratingPdf = false;
+
+    // Upload state
+    private List<UploadedSymbolFile> uploadedFiles = new();
+    private string? uploadError;
+
+    // Configuration state
+    private double tolerance = 0.01; // 1% default
+
+    // Phase 10.7: Configurable concurrency (1-8, default 4)
+    private int concurrencyLimit = 4;
+    private double estimatedTimeSeconds => uploadedFiles.Count > 0
+        ? (uploadedFiles.Count * 2.0) / concurrencyLimit  // 2 seconds per symbol average
+        : 0.0;
+
+    // Phase 10.7: Cancellation support
+    private CancellationTokenSource? _batchCancellation;
+
+    // Progress state
+    private int completedCount = 0;
+    private double progressPercent => uploadedFiles.Count > 0 ? (double)completedCount / uploadedFiles.Count * 100.0 : 0.0;
+
+    // Results state
+    private BatchComparisonResult[]? batchResults;
+    private BatchSummaryStatistics? batchSummary;
+
+    /// <summary>
+    /// Handles multiple file selection and validation.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Teaching Value (Undergraduate):</b></para>
+    /// <para>Students learn multi-file upload using InputFile with multiple attribute.</para>
+    /// <para>Demonstrates batch validation (2-10 files, size limits, format checks).</para>
+    /// </remarks>
+    private async Task HandleMultipleFilesSelected(InputFileChangeEventArgs e)
+    {
+        uploadError = null;
+        uploadedFiles.Clear();
+        currentStep = Math.Max(currentStep, 2);
+
+        var files = e.GetMultipleFiles(10); // Max 10 files
+
+        // Validate count
+        if (files.Count < 2)
+        {
+            uploadError = "Please select at least 2 symbol images for batch comparison.";
+            return;
+        }
+
+        if (files.Count > 10)
+        {
+            uploadError = "Maximum 10 symbols allowed per batch.";
+            return;
+        }
+
+        try
+        {
+            const long maxFileSize = 5 * 1024 * 1024; // 5 MB per file
+
+            foreach (var file in files)
+            {
+                // Validate file size
+                if (file.Size > maxFileSize)
+                {
+                    uploadError = $"File '{file.Name}' too large: {file.Size / 1024 / 1024:F1} MB. Max: 5 MB.";
+                    uploadedFiles.Clear();
+                    return;
+                }
+
+                // Validate file format
+                var allowedExtensions = new[] { ".png", ".jpg", ".jpeg" };
+                var extension = Path.GetExtension(file.Name).ToLowerInvariant();
+                if (!allowedExtensions.Contains(extension))
+                {
+                    uploadError = $"Unsupported format for '{file.Name}': {extension}. Allowed: PNG, JPG.";
+                    uploadedFiles.Clear();
+                    return;
+                }
+
+                // Read file into memory
+                using var stream = file.OpenReadStream(maxFileSize);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                var imageData = ms.ToArray();
+
+                // Load image to get dimensions
+                using var image = Image.Load<L8>(imageData);
+
+                // Add to uploaded files list
+                uploadedFiles.Add(new UploadedSymbolFile
+                {
+                    FileName = file.Name,
+                    ImageData = imageData,
+                    Width = image.Width,
+                    Height = image.Height,
+                    SymbolType = "Sharp" // Default, user can change
+                });
+
+                Logger.LogInformation("Batch file uploaded: {FileName}, size: {Size} bytes, dimensions: {Width}×{Height}",
+                    file.Name, file.Size, image.Width, image.Height);
+            }
+
+            Logger.LogInformation("Batch upload complete: {Count} files", uploadedFiles.Count);
+        }
+        catch (Exception ex)
+        {
+            uploadError = $"Failed to load images: {ex.Message}";
+            Logger.LogError(ex, "Batch file upload failed");
+            uploadedFiles.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Performs batch comparison using BatchComparisonService.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Teaching Value (Graduate):</b></para>
+    /// <para>Students see parallel processing in action with real-time progress updates.</para>
+    /// <para>Demonstrates IProgress&lt;T&gt; pattern for progress reporting from service layer.</para>
+    /// <para><b>Phase 10.7 Enhancement:</b> Configurable concurrency and cancellation support.</para>
+    /// </remarks>
+    private async Task CompareBatch()
+    {
+        if (uploadedFiles.Count < 2)
+        {
+            return;
+        }
+
+        isProcessing = true;
+        completedCount = 0;
+        batchResults = null;
+        batchSummary = null;
+        currentStep = Math.Max(currentStep, 3);
+
+        // Phase 10.7: Create cancellation token source
+        _batchCancellation = new CancellationTokenSource();
+
+        try
+        {
+            Logger.LogInformation(
+                "Starting batch comparison: {Count} symbols, tolerance: {Tolerance}%, concurrency: {Concurrency}",
+                uploadedFiles.Count, tolerance * 100, concurrencyLimit);
+
+            // Load images
+            var images = uploadedFiles.Select(f => Image.Load<L8>(f.ImageData)).ToArray();
+
+            // Parse symbol types
+            var symbolTypes = uploadedFiles.Select(f =>
+            {
+                if (Enum.TryParse<SymbolType>(f.SymbolType, out var type))
+                {
+                    return type;
+                }
+                throw new ArgumentException($"Invalid symbol type: {f.SymbolType}");
+            }).ToArray();
+
+            // Create progress reporter
+            var progress = new Progress<int>(count =>
+            {
+                completedCount = count;
+                InvokeAsync(StateHasChanged); // Update UI on progress
+            });
+
+            // Phase 10.7: Invoke batch comparison service with configurable concurrency and cancellation
+            batchResults = await BatchService.CompareMultipleAsync(
+                images,
+                symbolTypes,
+                tolerance,
+                customConcurrencyLimit: concurrencyLimit,
+                cancellationToken: _batchCancellation.Token,
+                progress: progress);
+
+            // Calculate summary statistics
+            batchSummary = BatchService.CalculateSummaryStatistics(batchResults);
+
+            // Dispose images (prevent memory leaks)
+            foreach (var image in images)
+            {
+                image.Dispose();
+            }
+
+            Logger.LogInformation("Batch comparison complete: {Total} symbols, {Pass} passed, {Fail} failed",
+                batchSummary.TotalCount, batchSummary.PassCount, batchSummary.FailCount);
+        }
+        catch (OperationCanceledException)
+        {
+            // Phase 10.7: User cancelled batch
+            Logger.LogInformation("Batch comparison cancelled by user");
+            uploadError = "Batch comparison cancelled by user. Partial results may be available.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Batch comparison failed");
+            uploadError = $"Batch comparison failed: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+            _batchCancellation?.Dispose();
+            _batchCancellation = null;
+        }
+    }
+
+    /// <summary>
+    /// Cancels the current batch comparison operation.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Phase 10.7: Cancellation Support</b></para>
+    /// <para>Demonstrates graceful cancellation using CancellationTokenSource.</para>
+    /// </remarks>
+    private void CancelBatch()
+    {
+        if (_batchCancellation != null && !_batchCancellation.IsCancellationRequested)
+        {
+            Logger.LogInformation("User requested batch cancellation");
+            _batchCancellation.Cancel();
+        }
+    }
+
+    /// <summary>
+    /// Downloads batch comparison results as multi-page PDF report.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Teaching Value (Graduate):</b></para>
+    /// <para>Students learn multi-page PDF generation with summary and detail pages.</para>
+    /// </remarks>
+    private async Task DownloadBatchPdfReport()
+    {
+        if (batchResults == null || batchSummary == null)
+        {
+            return;
+        }
+
+        isGeneratingPdf = true;
+
+        try
+        {
+            Logger.LogInformation("Generating batch PDF report: {Count} symbols", batchResults.Length);
+
+            // Generate PDF using PdfExportService
+            byte[] pdfBytes = await PdfExportService.ExportBatchReportAsync(batchResults, batchSummary, tolerance);
+
+            // Create filename: batch_comparison_20251115120000.pdf
+            string fileName = $"batch_comparison_{DateTime.UtcNow:yyyyMMddHHmmss}.pdf";
+
+            // Convert to base64 for JavaScript download
+            string base64Pdf = Convert.ToBase64String(pdfBytes);
+            string dataUrl = $"data:application/pdf;base64,{base64Pdf}";
+
+            // Trigger browser download using JavaScript interop
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, dataUrl);
+
+            Logger.LogInformation("Batch PDF report downloaded: {FileName}, {Size} bytes", fileName, pdfBytes.Length);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to generate batch PDF report");
+            // TODO: Show error message to user
+        }
+        finally
+        {
+            isGeneratingPdf = false;
+        }
+    }
+
+    /// <summary>
+    /// Resets batch comparison state for new upload.
+    /// </summary>
+    private void ResetBatch()
+    {
+        uploadedFiles.Clear();
+        uploadError = null;
+        batchResults = null;
+        batchSummary = null;
+        completedCount = 0;
+        currentStep = 1;
+    }
+
+    /// <summary>
+    /// Uploaded symbol file metadata.
+    /// </summary>
+    private class UploadedSymbolFile
+    {
+        public string FileName { get; set; } = string.Empty;
+        public byte[] ImageData { get; set; } = Array.Empty<byte>();
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public string SymbolType { get; set; } = "Sharp";
+    }
+}

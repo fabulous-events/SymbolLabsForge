@@ -1,0 +1,590 @@
+@page "/generator"
+@rendermode InteractiveServer
+@using SymbolLabsForge.UI.Web.Services
+@using SixLabors.ImageSharp
+@using SixLabors.ImageSharp.PixelFormats
+@inject SymbolGenerationService GenerationService
+@inject SymbolStyleProcessor StyleProcessor
+@inject GeneratedSymbolState SymbolState
+@inject NavigationManager NavigationManager
+@inject ILogger<Generator> Logger
+
+@*
+===============================================================
+File: Generator.razor
+Author: Claude (Phase 10.3 - Blazor Component Development)
+Date: 2025-11-15
+Purpose: Synthetic symbol generation UI - configure parameters, preview, download.
+
+PHASE 10.3: GENERATOR COMPONENT
+  - Select symbol type (Sharp, Flat, Natural, DoubleSharp, Treble)
+  - Configure dimensions with validation (10-500 × 10-1000)
+  - Preview generated symbol in real-time
+  - Download as PNG or use in comparison workflow
+  - Comprehensive error handling (DoS prevention, aspect ratio validation)
+
+WHY THIS MATTERS:
+  - Demonstrates parameterized generation with validation
+  - Students learn form validation, state management, async operations
+  - Shows integration between generator service and UI
+  - Enables students to create test symbols for comparison workflow
+
+TEACHING VALUE:
+  - Undergraduate: Form controls, validation, parameter tuning
+  - Graduate: Service integration, error handling, user feedback
+  - PhD: Parameter recommendation, ML-guided optimization
+
+AUDIENCE: Undergraduate / Graduate (form validation, service integration)
+===============================================================
+*@
+
+<PageTitle>Synthetic Symbol Generator - SymbolLabsForge</PageTitle>
+
+<h1>Synthetic Symbol Generator</h1>
+
+@if (showTutorial)
+{
+    <div class="tutorial-overlay">
+        <div class="tutorial-content">
+            <h3>Generate Perfect Musical Symbols</h3>
+            <p>This tool creates synthetic symbols with precise control over size and style.</p>
+            <p><strong>You'll learn:</strong></p>
+            <ul>
+                <li>How symbol parameters affect rendering quality</li>
+                <li>Aspect ratio constraints for different symbol types</li>
+                <li>DoS prevention through validation (max dimensions, pixel limits)</li>
+            </ul>
+            <button class="btn btn-primary" @onclick="() => showTutorial = false">Start Tutorial</button>
+            <button class="btn btn-secondary" @onclick="() => { showTutorial = false; skipTutorial = true; }">Skip</button>
+        </div>
+    </div>
+}
+
+<div class="generator-container">
+    @* Step 1: Select Symbol Type *@
+    <div class="step-card @(currentStep >= 1 ? "active" : "")">
+        <h3>Step 1: Select Symbol Type</h3>
+        @if (!skipTutorial && currentStep == 1)
+        {
+            <div class="tooltip-inline">
+                <strong>ℹ️ Tip:</strong> Each symbol type has recommended aspect ratios.
+                <br/>Sharp/Natural are tall (2.5:1), Flat is medium (2.5:1), Treble is very tall (2.5:1).
+            </div>
+        }
+
+        <div class="symbol-type-selector">
+            <label>Symbol Type:</label>
+            <select @bind="selectedSymbolType" @bind:after="OnSymbolTypeChanged">
+                <option value="Sharp">Sharp (♯) - Recommended: 20×50</option>
+                <option value="Flat">Flat (♭) - Recommended: 12×30</option>
+                <option value="Natural">Natural (♮) - Recommended: 20×50</option>
+                <option value="DoubleSharp">Double Sharp (𝄪) - Recommended: 25×55</option>
+                <option value="Treble">Treble Clef (𝄞) - Recommended: 180×450</option>
+            </select>
+
+            @if (selectedSymbolType != null)
+            {
+                <div class="recommended-sizes">
+                    <p><strong>Recommended Size:</strong> @GetRecommendedSize(selectedSymbolType)</p>
+                    <button class="btn btn-sm btn-secondary" @onclick="UseRecommendedSize">Use Recommended</button>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* Step 2: Configure Dimensions *@
+    <div class="step-card @(currentStep >= 2 ? "active" : "")">
+        <h3>Step 2: Configure Dimensions</h3>
+        @if (!skipTutorial && currentStep == 2)
+        {
+            <div class="tooltip-inline">
+                <strong>ℹ️ Tip:</strong> Width: 10-500 pixels, Height: 10-1000 pixels.
+                <br/>Aspect ratio must be between 0.1 and 10.0 to prevent extreme shapes.
+                <br/>Max total pixels: 500,000 (~500 KB) to prevent memory exhaustion.
+            </div>
+        }
+
+        <div class="dimension-controls">
+            <div class="dimension-input">
+                <label for="width">Width: <strong>@width</strong> pixels</label>
+                <input type="range" id="width" class="form-range"
+                       min="10" max="500" step="1"
+                       @bind="width" @bind:event="oninput" @bind:after="ValidateDimensions" />
+            </div>
+
+            <div class="dimension-input">
+                <label for="height">Height: <strong>@height</strong> pixels</label>
+                <input type="range" id="height" class="form-range"
+                       min="10" max="1000" step="1"
+                       @bind="height" @bind:event="oninput" @bind:after="ValidateDimensions" />
+            </div>
+
+            <div class="dimension-summary">
+                <p><strong>Size:</strong> @width × @height pixels</p>
+                <p><strong>Aspect Ratio:</strong> @((double)width / height).ToString("F2"):1</p>
+                <p><strong>Total Pixels:</strong> @(width * height).ToString("N0")</p>
+                @if (validationError != null)
+                {
+                    <div class="alert alert-danger">
+                        ❌ @validationError
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-success">
+                        ✅ Dimensions valid
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* Step 3: Style Options (Phase 10.4 Priority 2) *@
+    <div class="step-card @(currentStep >= 3 ? "active" : "")">
+        <h3>Step 3: Style Options</h3>
+        @if (!skipTutorial && currentStep == 3)
+        {
+            <div class="tooltip-inline">
+                <strong>ℹ️ Tip:</strong> Style options customize the appearance of your symbol.
+                <br/><strong>Stroke Thickness:</strong> Adjusts line width (1=thin, 10=thick).
+                <br/><strong>Background:</strong> Changes background color (transparent, white, black).
+            </div>
+        }
+
+        <div class="style-options">
+            <div class="style-control">
+                <label for="strokeThickness">Stroke Thickness: <strong>@strokeThickness</strong></label>
+                <input type="range" id="strokeThickness" class="form-range"
+                       min="1" max="10" step="1"
+                       @bind="strokeThickness" @bind:event="oninput"
+                       disabled="@(selectedSymbolType == null)" />
+                <small class="text-muted">
+                    1 = Very thin | 2 = Default | 10 = Very thick
+                </small>
+            </div>
+
+            <div class="style-control">
+                <label for="backgroundColor">Background Color:</label>
+                <select id="backgroundColor" class="form-select" @bind="backgroundColor"
+                        disabled="@(selectedSymbolType == null)">
+                    <option value="@BackgroundColorOption.Transparent">Transparent (Default)</option>
+                    <option value="@BackgroundColorOption.White">White (Light Mode)</option>
+                    <option value="@BackgroundColorOption.Black">Black (Dark Mode)</option>
+                </select>
+                <small class="text-muted">
+                    Background affects visual perception and diff comparison
+                </small>
+            </div>
+
+            <div class="style-preview-toggle">
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="enableStyles" @bind="enableStyles" />
+                    <label class="form-check-label" for="enableStyles">
+                        Apply custom styles (uncheck to use defaults)
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* Generate Button *@
+    <div class="action-section">
+        <button class="btn btn-primary btn-lg" @onclick="GenerateSymbol"
+                disabled="@(selectedSymbolType == null || validationError != null || isProcessing)">
+            @if (isProcessing)
+            {
+                <span class="spinner-border spinner-border-sm" role="status"></span>
+                <span> Generating...</span>
+            }
+            else
+            {
+                <span>🎨 Generate Symbol</span>
+            }
+        </button>
+    </div>
+
+    @* Preview Section *@
+    @if (generatedImageDataUrl != null)
+    {
+        <div class="preview-section">
+            <hr />
+            <h2>Preview</h2>
+
+            @if (generationError != null)
+            {
+                <div class="alert alert-danger">
+                    <h4>❌ Generation Failed</h4>
+                    <p>@generationError</p>
+                </div>
+            }
+            else
+            {
+                <div class="preview-card">
+                    <div class="preview-image-container">
+                        <img src="@generatedImageDataUrl" alt="Generated symbol" class="generated-symbol-preview" />
+                        <p class="text-muted">@width×@height pixels, L8 grayscale</p>
+                    </div>
+
+                    @* Before/After Comparison (Phase 10.4 Priority 2) *@
+                    @if (baseImageData != null && enableStyles)
+                    {
+                        <div class="before-after-preview">
+                            <h4>Before/After Style Comparison</h4>
+                            <div class="comparison-grid">
+                                <div class="comparison-column">
+                                    <h5>Base (Default)</h5>
+                                    <img src="data:image/png;base64,@Convert.ToBase64String(baseImageData)"
+                                         alt="Base symbol without styles" class="comparison-image" />
+                                    <p class="text-muted">Original rendering</p>
+                                </div>
+                                <div class="comparison-column">
+                                    <h5>Styled (Custom)</h5>
+                                    <img src="@generatedImageDataUrl"
+                                         alt="Styled symbol with customizations" class="comparison-image" />
+                                    <p class="text-muted">
+                                        Thickness: @strokeThickness<br/>
+                                        Background: @backgroundColor
+                                    </p>
+                                </div>
+                            </div>
+                            <p class="text-muted teaching-note">
+                                <strong>💡 Teaching Value:</strong> Compare how stroke thickness (@strokeThickness) and
+                                background color (@backgroundColor) affect the final symbol appearance. This demonstrates
+                                post-processing pipeline design and morphological image operations.
+                            </p>
+                        </div>
+                    }
+
+                    <div class="preview-stats">
+                        <h4>Symbol Information</h4>
+                        <ul>
+                            <li><strong>Type:</strong> @selectedSymbolType</li>
+                            <li><strong>Size:</strong> @width × @height pixels</li>
+                            <li><strong>Aspect Ratio:</strong> @((double)width / height).ToString("F2"):1</li>
+                            <li><strong>Format:</strong> PNG, 8-bit grayscale</li>
+                        </ul>
+                    </div>
+
+                    <div class="action-buttons">
+                        <a href="@generatedImageDataUrl" download="@GetDownloadFileName()" class="btn btn-primary">
+                            💾 Download PNG
+                        </a>
+                        <button class="btn btn-secondary" @onclick="UseInComparison">
+                            🔍 Use in Comparison
+                        </button>
+                        <button class="btn btn-outline-secondary" @onclick="ResetGenerator">
+                            🔄 Generate Another
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    // State management
+    private bool showTutorial = true;
+    private bool skipTutorial = false;
+    private int currentStep = 1;
+    private bool isProcessing = false;
+
+    // Configuration state
+    private string? selectedSymbolType;
+    private int width = 20;
+    private int height = 50;
+
+    // Validation state
+    private string? validationError;
+
+    // Style options state (Phase 10.4 Priority 2)
+    private int strokeThickness = StyleOptions.DefaultStrokeThickness; // 2 = default
+    private BackgroundColorOption backgroundColor = BackgroundColorOption.Transparent;
+    private bool enableStyles = false; // Toggle for applying custom styles
+
+    // Generation state
+    private string? generatedImageDataUrl;
+    private byte[]? generatedImageData;
+    private byte[]? baseImageData; // Base image before styling (for before/after comparison)
+    private string? generationError;
+
+    // Default sizes for each symbol type
+    private readonly Dictionary<string, (int Width, int Height)> recommendedSizes = new()
+    {
+        ["Sharp"] = (20, 50),
+        ["Flat"] = (12, 30),
+        ["Natural"] = (20, 50),
+        ["DoubleSharp"] = (25, 55),
+        ["Treble"] = (180, 450)
+    };
+
+    protected override void OnInitialized()
+    {
+        // Start with Sharp as default
+        selectedSymbolType = "Sharp";
+        UseRecommendedSize();
+        currentStep = 1;
+    }
+
+    /// <summary>
+    /// Handles symbol type selection change.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Teaching Value (Undergraduate):</b></para>
+    /// <para>Students learn parameter-dependent validation and state synchronization.</para>
+    /// </remarks>
+    private void OnSymbolTypeChanged()
+    {
+        currentStep = Math.Max(currentStep, 2);
+        // Keep current dimensions unless explicitly reset
+    }
+
+    /// <summary>
+    /// Applies recommended size for selected symbol type.
+    /// </summary>
+    private void UseRecommendedSize()
+    {
+        if (selectedSymbolType != null && recommendedSizes.TryGetValue(selectedSymbolType, out var size))
+        {
+            width = size.Width;
+            height = size.Height;
+            ValidateDimensions();
+        }
+    }
+
+    /// <summary>
+    /// Gets recommended size string for display.
+    /// </summary>
+    private string GetRecommendedSize(string symbolType)
+    {
+        if (recommendedSizes.TryGetValue(symbolType, out var size))
+        {
+            return $"{size.Width}×{size.Height} pixels";
+        }
+        return "N/A";
+    }
+
+    /// <summary>
+    /// Validates dimensions against constraints.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Teaching Value (Graduate):</b></para>
+    /// <para>Students learn comprehensive input validation to prevent:</para>
+    /// <list type="bullet">
+    /// <item>DoS attacks (extreme dimensions)</item>
+    /// <item>Invalid parameters (negative dimensions, extreme aspect ratios)</item>
+    /// <item>Memory exhaustion (max pixel limit)</item>
+    /// </list>
+    /// </remarks>
+    private void ValidateDimensions()
+    {
+        validationError = null;
+        currentStep = Math.Max(currentStep, 2);
+
+        // Dimension range check
+        if (width <= 0 || height <= 0)
+        {
+            validationError = $"Width and height must be greater than 0. Got: {width}×{height}";
+            return;
+        }
+
+        // Max dimensions (DoS prevention)
+        const int MaxWidth = 500;
+        const int MaxHeight = 1000;
+
+        if (width > MaxWidth || height > MaxHeight)
+        {
+            validationError = $"Size exceeds maximum allowed. Max: {MaxWidth}×{MaxHeight}, Got: {width}×{height}. " +
+                            $"This prevents memory exhaustion (~{width * height / 1000} KB).";
+            return;
+        }
+
+        // Aspect ratio sanity check
+        double ratio = (double)width / height;
+        if (ratio < 0.1 || ratio > 10.0)
+        {
+            validationError = $"Aspect ratio too extreme (must be between 0.1 and 10.0). Got: {ratio:F2}";
+            return;
+        }
+
+        // Max total pixels (memory safety)
+        const int MaxPixels = 500 * 1000; // 500,000 pixels (~500 KB)
+
+        if (width * height > MaxPixels)
+        {
+            validationError = $"Image too large ({width * height} pixels). Max: {MaxPixels} pixels.";
+            return;
+        }
+
+        currentStep = Math.Max(currentStep, 3);
+    }
+
+    /// <summary>
+    /// Generates symbol using SymbolGenerationService.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Teaching Value (Graduate):</b></para>
+    /// <para>Students learn async service invocation, error handling, and state management.</para>
+    /// </remarks>
+    private async Task GenerateSymbol()
+    {
+        if (selectedSymbolType == null || validationError != null)
+        {
+            return;
+        }
+
+        isProcessing = true;
+        generationError = null;
+        generatedImageDataUrl = null;
+
+        try
+        {
+            Logger.LogInformation("Generating symbol: {SymbolType}, size: {Width}×{Height}",
+                selectedSymbolType, width, height);
+
+            // Parse symbol type enum
+            if (!Enum.TryParse<SymbolType>(selectedSymbolType, out var symbolType))
+            {
+                generationError = $"Invalid symbol type: {selectedSymbolType}";
+                return;
+            }
+
+            // Create generation request
+            var request = new SymbolGenerationRequest
+            {
+                SymbolType = symbolType,
+                Width = width,
+                Height = height
+            };
+
+            // Invoke generation service
+            var result = GenerationService.GenerateSymbol(request);
+
+            if (!result.IsValid || result.Data == null)
+            {
+                generationError = result.ErrorMessage ?? "Unknown generation error";
+                Logger.LogWarning("Generation failed: {Error}", generationError);
+                return;
+            }
+
+            // Save base image (before styling) for before/after comparison
+            using var baseMs = new MemoryStream();
+            await result.Data.SaveAsPngAsync(baseMs);
+            baseImageData = baseMs.ToArray();
+
+            // Apply style options if enabled (Phase 10.4 Priority 2)
+            Image<L8> finalImage;
+            if (enableStyles)
+            {
+                Logger.LogInformation("Applying custom styles: StrokeThickness={Thickness}, Background={Background}",
+                    strokeThickness, backgroundColor);
+
+                var styleOptions = new StyleOptions
+                {
+                    StrokeThickness = strokeThickness,
+                    BackgroundColor = backgroundColor
+                };
+
+                finalImage = StyleProcessor.ApplyStyles(result.Data, styleOptions);
+
+                Logger.LogInformation("Styles applied successfully");
+            }
+            else
+            {
+                // No styling, use base image directly
+                finalImage = result.Data.Clone();
+            }
+
+            // Convert styled image to data URL for preview
+            using var styledMs = new MemoryStream();
+            await finalImage.SaveAsPngAsync(styledMs);
+            generatedImageData = styledMs.ToArray();
+
+            var base64 = Convert.ToBase64String(generatedImageData);
+            generatedImageDataUrl = $"data:image/png;base64,{base64}";
+
+            // Clean up
+            finalImage.Dispose();
+
+            Logger.LogInformation("Symbol generated successfully: {SymbolType}, {Width}×{Height}, Styled={Styled}",
+                selectedSymbolType, width, height, enableStyles);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Symbol generation failed");
+            generationError = $"Unexpected error: {ex.Message}";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    /// <summary>
+    /// Navigates to comparison page with generated symbol.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Phase 10.4: State Transfer Implementation</b></para>
+    /// <para>Uses GeneratedSymbolState scoped service to pass symbol data to Comparison page.</para>
+    ///
+    /// <para><b>Teaching Value (Graduate):</b></para>
+    /// <para>Students learn cross-component state transfer patterns:</para>
+    /// <list type="bullet">
+    /// <item>SetData() stores state in scoped service</item>
+    /// <item>NavigateTo() triggers navigation</item>
+    /// <item>Comparison.OnInitialized() consumes state</item>
+    /// <item>Clear() ensures one-time use</item>
+    /// </list>
+    ///
+    /// <para><b>Why This Works:</b></para>
+    /// <para>Scoped services persist during Blazor Server connection, so state survives navigation.
+    /// Once Comparison consumes the state, it's cleared to prevent accidental reuse.</para>
+    /// </remarks>
+    private void UseInComparison()
+    {
+        if (generatedImageData == null || selectedSymbolType == null)
+        {
+            Logger.LogWarning("UseInComparison called but no generated symbol available");
+            return;
+        }
+
+        try
+        {
+            // Store generated symbol in state service
+            SymbolState.SetData(generatedImageData, selectedSymbolType, width, height);
+
+            Logger.LogInformation("Transferring generated symbol to Comparison: {Diagnostics}",
+                SymbolState.GetDiagnostics());
+
+            // Navigate to comparison page (state will be consumed there)
+            NavigationManager.NavigateTo("/comparison");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to transfer state to Comparison page");
+            // State transfer failed, but user can still navigate manually
+            NavigationManager.NavigateTo("/comparison");
+        }
+    }
+
+    /// <summary>
+    /// Gets download filename for generated symbol.
+    /// </summary>
+    private string GetDownloadFileName()
+    {
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMddHHmmss");
+        return $"symbol_{selectedSymbolType?.ToLower()}_{width}x{height}_{timestamp}.png";
+    }
+
+    /// <summary>
+    /// Resets generator state for new symbol.
+    /// </summary>
+    private void ResetGenerator()
+    {
+        generatedImageDataUrl = null;
+        generatedImageData = null;
+        generationError = null;
+        currentStep = 1;
+        UseRecommendedSize();
+    }
+}

@@ -1,0 +1,142 @@
+﻿@page "/"
+
+@*
+===============================================================
+File: Home.razor
+Author: Claude (Phase 10.3 - Blazor Component Development)
+Date: 2025-11-15
+Purpose: Landing page for SymbolLabsForge UI - introduces tools and learning objectives.
+
+PHASE 10.3: HOME PAGE
+  - Welcome message and platform overview
+  - Quick links to Symbol Comparison and Symbol Generator tools
+  - Teaching objectives and audience tiers
+  - Getting started guidance
+
+AUDIENCE: All levels (High School → PhD)
+===============================================================
+*@
+
+<PageTitle>SymbolLabsForge - Musical Symbol Testing Platform</PageTitle>
+
+<h1>Welcome to SymbolLabsForge</h1>
+
+<div class="welcome-container">
+    <div class="intro-section">
+        <p class="lead">
+            <strong>SymbolLabsForge</strong> is an educational platform for testing and generating musical symbols
+            with visual regression testing capabilities.
+        </p>
+        <p>
+            This platform demonstrates real-world software testing concepts through interactive comparison
+            workflows and synthetic symbol generation - perfect for undergraduate and graduate coursework
+            in computer graphics, image processing, and software quality assurance.
+        </p>
+    </div>
+
+    <div class="tools-grid">
+        <div class="tool-card">
+            <h2>🔍 Symbol Comparison</h2>
+            <p>
+                Upload your musical symbols (sharp, flat, natural, treble clef) and compare them against
+                canonical reference outputs.
+            </p>
+            <ul>
+                <li>Visual diff generation (red highlights show differences)</li>
+                <li>Tolerance-based comparison (0.0% to 10.0%)</li>
+                <li>Statistical similarity metrics</li>
+                <li>Pass/fail validation with detailed feedback</li>
+            </ul>
+            <a href="/comparison" class="btn btn-primary">Start Comparison →</a>
+        </div>
+
+        <div class="tool-card">
+            <h2>🎨 Symbol Generator</h2>
+            <p>
+                Generate synthetic musical symbols with precise control over size and rendering parameters.
+            </p>
+            <ul>
+                <li>5 symbol types (Sharp, Flat, Natural, Double Sharp, Treble Clef)</li>
+                <li>Customizable dimensions (10×10 to 500×1000 pixels)</li>
+                <li>Aspect ratio validation and DoS prevention</li>
+                <li>Download as PNG or use directly in comparison workflow</li>
+            </ul>
+            <a href="/generator" class="btn btn-primary">Generate Symbols →</a>
+        </div>
+    </div>
+
+    <div class="learning-objectives">
+        <h2>Learning Objectives</h2>
+        <div class="audience-tiers">
+            <div class="tier">
+                <h3>Undergraduate Level</h3>
+                <ul>
+                    <li>Understanding visual regression testing concepts</li>
+                    <li>Pixel-by-pixel image comparison algorithms</li>
+                    <li>Tolerance-based validation strategies</li>
+                    <li>File upload and form validation in web applications</li>
+                </ul>
+            </div>
+            <div class="tier">
+                <h3>Graduate Level</h3>
+                <ul>
+                    <li>Service layer architecture and dependency injection</li>
+                    <li>Memory caching strategies for performance optimization</li>
+                    <li>Comprehensive error handling and user feedback patterns</li>
+                    <li>DoS prevention through input validation</li>
+                </ul>
+            </div>
+            <div class="tier">
+                <h3>PhD / Research Level</h3>
+                <ul>
+                    <li>Adaptive parameter recommendation systems</li>
+                    <li>ML-guided symbol generation optimization</li>
+                    <li>Statistical similarity metrics and threshold tuning</li>
+                    <li>Reproducible experiment design for computer vision</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="getting-started">
+        <h2>Getting Started</h2>
+        <ol>
+            <li>
+                <strong>Option 1: Generate a Symbol</strong>
+                <p>Visit the <a href="/generator">Symbol Generator</a> to create a synthetic musical symbol
+                with your desired parameters.</p>
+            </li>
+            <li>
+                <strong>Option 2: Upload Your Symbol</strong>
+                <p>If you already have a symbol image (PNG or JPG), go directly to
+                <a href="/comparison">Symbol Comparison</a>.</p>
+            </li>
+            <li>
+                <strong>Compare Against Canonical</strong>
+                <p>Select the symbol type (Sharp, Flat, Natural, etc.) and adjust the tolerance threshold
+                to see how your symbol compares.</p>
+            </li>
+            <li>
+                <strong>Review Results</strong>
+                <p>View detailed statistics, visual diff images, and pass/fail status with actionable feedback.</p>
+            </li>
+        </ol>
+    </div>
+
+    <div class="technical-details">
+        <h2>Technical Architecture</h2>
+        <p>
+            Built with <strong>Blazor Server (.NET 9.0)</strong>, this platform demonstrates:
+        </p>
+        <ul>
+            <li><strong>Phase 9.1 Integration:</strong> SnapshotComparer and ImageDiffGenerator utilities</li>
+            <li><strong>Phase 10.1:</strong> Service layer architecture (ComparisonService, SymbolGenerationService)</li>
+            <li><strong>Phase 10.2:</strong> Generator integration with memory caching</li>
+            <li><strong>Phase 10.3:</strong> Interactive Blazor components with teaching overlays</li>
+        </ul>
+        <p class="text-muted">
+            <em>See project documentation for detailed implementation notes, teaching artifacts,
+            and governance protocols.</em>
+        </p>
+    </div>
+</div>

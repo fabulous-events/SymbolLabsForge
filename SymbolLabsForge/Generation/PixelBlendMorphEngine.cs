@@ -6,12 +6,31 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using SymbolLabsForge.Configuration;
+using SymbolLabsForge.ImageProcessing.Utilities;
 
 namespace SymbolLabsForge.Generation
 {
     /// <summary>
-    /// A simulated morphing engine that performs a pixel-wise alpha blend between two source images.
+    /// A simulated morphing engine that performs pixel-wise linear blending between two source images.
     /// </summary>
+    /// <remarks>
+    /// <para><b>Phase 9.2 Refactor: Service vs. Utility Separation</b></para>
+    /// <para>This class now delegates blending logic to <see cref="PixelBlender.LinearBlend"/>.
+    /// PixelBlendMorphEngine retains service layer concerns: DI, file I/O, path construction.
+    /// PixelBlender contains pure blending algorithms: no I/O, no dependencies, fully testable.</para>
+    ///
+    /// <para><b>What This Class Does:</b></para>
+    /// <list type="bullet">
+    /// <item>Loads source images from disk (from AssetSettings.RootDirectory/Snapshots)</item>
+    /// <item>Validates file existence</item>
+    /// <item>Delegates blending to PixelBlender.LinearBlend()</item>
+    /// <item>Returns morphed image to caller</item>
+    /// </list>
+    ///
+    /// <para><b>Teaching Value:</b></para>
+    /// <para>Demonstrates separation of concerns: I/O layer (this class) vs. algorithm layer (PixelBlender).
+    /// Students learn how to design testable, reusable utilities by extracting pure functions.</para>
+    /// </remarks>
     public class PixelBlendMorphEngine : IMorphEngine
     {
         private readonly string _snapshotDirectory;
@@ -24,6 +43,7 @@ namespace SymbolLabsForge.Generation
 
         public async Task<Image<L8>> MorphAsync(MorphRequest request)
         {
+            // Service layer: File I/O and path construction
             var fromPath = Path.Combine(_snapshotDirectory, request.Type.ToString(), $"{request.FromStyle}.png");
             var toPath = Path.Combine(_snapshotDirectory, request.Type.ToString(), $"{request.ToStyle}.png");
 
@@ -35,21 +55,10 @@ namespace SymbolLabsForge.Generation
             using var fromImage = await Image.LoadAsync<L8>(fromPath);
             using var toImage = await Image.LoadAsync<L8>(toPath);
 
-            // For simplicity, we'll use the dimensions of the "from" image.
-            // A more robust implementation would resize/align the images.
-            var output = new Image<L8>(fromImage.Width, fromImage.Height);
-
-            for (int y = 0; y < fromImage.Height; y++)
-            {
-                for (int x = 0; x < fromImage.Width; x++)
-                {
-                    // Simple linear interpolation between the pixel values
-                    byte fromPixel = fromImage[x, y].PackedValue;
-                    byte toPixel = toImage[x, y].PackedValue;
-                    byte resultPixel = (byte)(fromPixel * (1.0f - request.InterpolationFactor) + toPixel * request.InterpolationFactor);
-                    output[x, y] = new L8(resultPixel);
-                }
-            }
+            // Utility layer: Pure blending algorithm (delegated to PixelBlender)
+            // Phase 9.2 Refactor: Blending logic extracted to PixelBlender.LinearBlend()
+            // This enables unit testing of blending algorithm without file I/O dependencies
+            var output = PixelBlender.LinearBlend(fromImage, toImage, request.InterpolationFactor);
 
             return output;
         }
