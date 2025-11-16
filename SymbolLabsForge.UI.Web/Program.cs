@@ -65,8 +65,12 @@ builder.Services.AddSingleton<PdfExportService>(); // PDF generation for compari
 // 7. Register health checks (Phase 11 - Production Deployment)
 builder.Services.AddHealthChecks(); // Health endpoint for Azure App Service monitoring
 
+// 8. Register SignalR for real-time collaboration (Phase 10.6)
+builder.Services.AddSignalR(); // WebSocket-based real-time communication
+builder.Services.AddSingleton<SymbolLabsForge.UI.Web.Hubs.SessionStore>(); // Thread-safe session storage
+
 //==============================================================
-// End Phase 10.1 DI Configuration (Updated Phase 10.5)
+// End Phase 10.1 DI Configuration (Updated Phase 10.6)
 //==============================================================
 
 var app = builder.Build();
@@ -91,5 +95,9 @@ app.MapRazorComponents<App>()
 // Health check endpoint (Phase 11 - Production Deployment)
 // Azure App Service pings /health to verify application is running
 app.MapHealthChecks("/health");
+
+// SignalR hub endpoint (Phase 10.6 - Real-Time Collaboration)
+// Clients connect to /hubs/comparison for WebSocket communication
+app.MapHub<SymbolLabsForge.UI.Web.Hubs.ComparisonHub>("/hubs/comparison");
 
 app.Run();

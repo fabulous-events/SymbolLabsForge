@@ -1,0 +1,627 @@
+@page "/collaboration"
+@page "/collaboration/{SessionId}"
+@rendermode InteractiveServer
+@using SymbolLabsForge.UI.Web.Services
+@using SymbolLabsForge.UI.Web.Hubs
+@using SixLabors.ImageSharp
+@using SixLabors.ImageSharp.PixelFormats
+@using Microsoft.AspNetCore.SignalR.Client
+@inject ComparisonService ComparisonService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject ILogger<CollaborativeComparison> Logger
+@implements IAsyncDisposable
+
+@*
+===============================================================
+File: CollaborativeComparison.razor
+Author: Claude (Phase 10.6 - Real-Time Collaboration)
+Date: 2025-11-15
+Purpose: Collaborative symbol comparison with real-time state sync.
+
+PHASE 10.6: COLLABORATIVE COMPARISON UI
+  - SignalR WebSocket connection to ComparisonHub
+  - Session creation and joining via shareable URLs
+  - Real-time participant list sidebar
+  - State synchronization (uploads, tolerance, results)
+  - Annotation support for instructor feedback
+
+WHY THIS MATTERS:
+  - Students learn real-time multi-user collaboration
+  - Demonstrates SignalR client-side integration
+  - Shows distributed state synchronization patterns
+  - Real-world pattern for collaborative applications
+
+TEACHING VALUE:
+  - Graduate: SignalR HubConnection, WebSocket lifecycle
+  - PhD: Eventual consistency, network partitions, reconnection
+
+AUDIENCE: Graduate / PhD (distributed systems, real-time collaboration)
+===============================================================
+*@
+
+<PageTitle>Collaborative Comparison - SymbolLabsForge</PageTitle>
+
+<div class="collaborative-container">
+    <div class="main-content">
+        <h1>Collaborative Symbol Comparison</h1>
+
+        @* Connection Status *@
+        <div class="connection-status @GetConnectionStatusClass()">
+            <strong>⚡ Connection:</strong> @connectionStatus
+            @if (hubConnection?.State == HubConnectionState.Connected && sessionId != null)
+            {
+                <span class="session-info"> | Session: <code>@sessionId</code></span>
+            }
+        </div>
+
+        @* Session Management *@
+        @if (sessionId == null)
+        {
+            <div class="session-setup">
+                <h3>Start or Join a Session</h3>
+
+                <div class="setup-options">
+                    @* Create New Session *@
+                    <div class="option-card">
+                        <h4>Create New Session</h4>
+                        <div class="form-group">
+                            <label>Your Name:</label>
+                            <input type="text" @bind="displayName" class="form-control" placeholder="Enter your name" />
+                        </div>
+                        <div class="form-group">
+                            <label>Role:</label>
+                            <select @bind="selectedRole" class="form-control">
+                                <option value="@ParticipantRole.Instructor">Instructor</option>
+                                <option value="@ParticipantRole.Student">Student</option>
+                                <option value="@ParticipantRole.Viewer">Viewer (Read-only)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" @onclick="CreateSession" disabled="@(string.IsNullOrWhiteSpace(displayName) || isConnecting)">
+                            Create Session
+                        </button>
+                    </div>
+
+                    @* Join Existing Session *@
+                    <div class="option-card">
+                        <h4>Join Existing Session</h4>
+                        <p class="text-muted">Enter session ID from shareable URL</p>
+                        <div class="form-group">
+                            <label>Session ID:</label>
+                            <input type="text" @bind="joinSessionId" class="form-control" placeholder="Paste session ID" />
+                        </div>
+                        <div class="form-group">
+                            <label>Your Name:</label>
+                            <input type="text" @bind="displayName" class="form-control" placeholder="Enter your name" />
+                        </div>
+                        <button class="btn btn-secondary" @onclick="JoinSession" disabled="@(string.IsNullOrWhiteSpace(displayName) || string.IsNullOrWhiteSpace(joinSessionId) || isConnecting)">
+                            Join Session
+                        </button>
+                    </div>
+                </div>
+
+                @if (errorMessage != null)
+                {
+                    <div class="alert alert-danger mt-3">❌ @errorMessage</div>
+                }
+            </div>
+        }
+        else
+        {
+            @* Active Collaboration Session *@
+            <div class="session-active">
+                <div class="session-header">
+                    <h3>Session Active</h3>
+                    <button class="btn btn-sm btn-info" @onclick="CopyShareableUrl">📋 Copy Shareable URL</button>
+                    <button class="btn btn-sm btn-danger" @onclick="LeaveSession">Leave Session</button>
+                </div>
+
+                @* Comparison Workflow (similar to Comparison.razor) *@
+                <div class="comparison-workflow">
+                    @* Step 1: Upload Symbol *@
+                    <div class="step-card active">
+                        <h3>Step 1: Upload Symbol</h3>
+                        <div class="upload-section">
+                            <InputFile OnChange="HandleFileSelected" accept=".png,.jpg,.jpeg" disabled="@isProcessing" />
+
+                            @if (uploadedFileName != null)
+                            {
+                                <div class="upload-preview">
+                                    <p><strong>Selected:</strong> @uploadedFileName</p>
+                                    @if (uploadedImageDataUrl != null)
+                                    {
+                                        <img src="@uploadedImageDataUrl" alt="Uploaded symbol" style="max-width: 150px; border: 1px solid #ccc;" />
+                                    }
+                                </div>
+                            }
+
+                            @if (uploadError != null)
+                            {
+                                <div class="alert alert-danger">❌ @uploadError</div>
+                            }
+                        </div>
+                    </div>
+
+                    @* Step 2: Select Symbol Type *@
+                    <div class="step-card active">
+                        <h3>Step 2: Select Symbol Type</h3>
+                        <div class="symbol-type-selector">
+                            @foreach (var symbolType in Enum.GetValues<SymbolType>())
+                            {
+                                <button class="symbol-btn @(selectedSymbolType == symbolType ? "selected" : "")"
+                                        @onclick="() => SelectSymbolType(symbolType)"
+                                        disabled="@isProcessing">
+                                    @symbolType
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    @* Step 3: Configure Tolerance *@
+                    <div class="step-card active">
+                        <h3>Step 3: Configure Tolerance</h3>
+                        <div class="tolerance-config">
+                            <label>Tolerance: <strong>@(tolerance * 100)%</strong></label>
+                            <input type="range" min="0" max="10" step="0.1" @bind="tolerance" @bind:event="oninput" @onchange="BroadcastToleranceChange" class="form-range" disabled="@isProcessing" />
+                            <p class="text-muted">Higher tolerance = more lenient comparison</p>
+                        </div>
+                    </div>
+
+                    @* Step 4: Compare *@
+                    <div class="step-card active">
+                        <button class="btn btn-success btn-lg" @onclick="CompareSymbol" disabled="@(!CanCompare() || isProcessing)">
+                            @if (isProcessing)
+                            {
+                                <span>Processing...</span>
+                            }
+                            else
+                            {
+                                <span>Compare Symbol</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+
+                @* Comparison Results *@
+                @if (comparisonResult != null)
+                {
+                    <div class="results-section">
+                        <h3>Comparison Results</h3>
+                        @if (comparisonResult.ErrorMessage != null)
+                        {
+                            <div class="alert alert-danger">❌ @comparisonResult.ErrorMessage</div>
+                        }
+                        else
+                        {
+                            <div class="result-summary @(comparisonResult.Similar ? "success" : "failure")">
+                                <h4>@(comparisonResult.Similar ? "✅ PASS" : "❌ FAIL")</h4>
+                                <p><strong>Similarity:</strong> @comparisonResult.SimilarityPercent.ToString("F2")%</p>
+                                <p><strong>Difference:</strong> @comparisonResult.DifferencePercent.ToString("F2")%</p>
+                            </div>
+
+                            @if (comparisonResult.DiffImagePath != null)
+                            {
+                                <div class="diff-visualization">
+                                    <h4>Diff Visualization</h4>
+                                    <img src="@comparisonResult.DiffImagePath" alt="Diff image" style="max-width: 100%; border: 2px solid #333;" />
+                                </div>
+                            }
+
+                            @if (comparisonResult.Statistics != null)
+                            {
+                                <div class="statistics-panel">
+                                    <h4>Statistics</h4>
+                                    <ul>
+                                        <li>Total Pixels: @comparisonResult.Statistics.TotalPixels</li>
+                                        <li>Different Pixels: @comparisonResult.Statistics.DifferentPixels</li>
+                                        <li>Max Error: @comparisonResult.Statistics.MaxError</li>
+                                        <li>Mean Error: @comparisonResult.Statistics.MeanError.ToString("F2")</li>
+                                    </ul>
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    @* Participant Sidebar *@
+    @if (sessionId != null)
+    {
+        <div class="participants-sidebar">
+            <h3>Participants (@participants.Count)</h3>
+            <ul class="participant-list">
+                @foreach (var participant in participants)
+                {
+                    <li class="participant-item">
+                        <span class="participant-icon">@GetRoleIcon(participant.Role)</span>
+                        <span class="participant-name">@participant.DisplayName</span>
+                        <span class="participant-role">(@participant.Role)</span>
+                    </li>
+                }
+            </ul>
+
+            <div class="teaching-moment">
+                <strong>📚 Teaching Moment (Graduate):</strong>
+                <p>
+                    <small>
+                        Participant list updates in real-time via SignalR "ParticipantJoined" events.
+                        State changes (uploads, tolerance) are broadcast to all participants using SignalR Groups.
+                    </small>
+                </p>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? SessionId { get; set; }
+
+    // SignalR
+    private HubConnection? hubConnection;
+    private string connectionStatus = "Disconnected";
+    private bool isConnecting = false;
+
+    // Session state
+    private string? sessionId;
+    private string displayName = "";
+    private string joinSessionId = "";
+    private ParticipantRole selectedRole = ParticipantRole.Student;
+    private List<SessionParticipant> participants = new();
+
+    // Comparison state
+    private byte[]? uploadedImageData;
+    private string? uploadedImageDataUrl;
+    private string? uploadedFileName;
+    private SymbolType? selectedSymbolType;
+    private double tolerance = 0.01;
+    private bool isProcessing = false;
+    private ComparisonResult? comparisonResult;
+    private string? uploadError;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Initialize SignalR connection
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/hubs/comparison"))
+            .WithAutomaticReconnect() // Phase 10.6: Automatic reconnection
+            .Build();
+
+        // Register client-side event handlers
+        hubConnection.On<SessionParticipant>("ParticipantJoined", OnParticipantJoined);
+        hubConnection.On<string>("ParticipantLeft", OnParticipantLeft);
+        hubConnection.On<byte[], SymbolType>("ImageUploaded", OnImageUploaded);
+        hubConnection.On<double>("ToleranceChanged", OnToleranceChanged);
+        hubConnection.On<ComparisonResult>("ComparisonCompleted", OnComparisonCompleted);
+
+        // Connection state handlers
+        hubConnection.Reconnecting += OnReconnecting;
+        hubConnection.Reconnected += OnReconnected;
+        hubConnection.Closed += OnConnectionClosed;
+
+        try
+        {
+            connectionStatus = "Connecting...";
+            await hubConnection.StartAsync();
+            connectionStatus = "Connected";
+
+            Logger.LogInformation("SignalR connected: ConnectionId={ConnectionId}", hubConnection.ConnectionId);
+
+            // If SessionId parameter provided, auto-join
+            if (!string.IsNullOrWhiteSpace(SessionId))
+            {
+                joinSessionId = SessionId;
+                // Prompt for name if not set
+                if (string.IsNullOrWhiteSpace(displayName))
+                {
+                    displayName = "Guest";
+                }
+                await JoinSession();
+            }
+        }
+        catch (Exception ex)
+        {
+            connectionStatus = $"Connection failed: {ex.Message}";
+            Logger.LogError(ex, "Failed to connect to SignalR hub");
+        }
+    }
+
+    private async Task CreateSession()
+    {
+        if (hubConnection == null || string.IsNullOrWhiteSpace(displayName))
+            return;
+
+        try
+        {
+            isConnecting = true;
+            errorMessage = null;
+
+            sessionId = await hubConnection.InvokeAsync<string>("CreateSession", displayName, selectedRole);
+
+            Logger.LogInformation("Session created: SessionId={SessionId}, DisplayName={DisplayName}", sessionId, displayName);
+
+            // Add self to participants list
+            participants.Add(new SessionParticipant
+            {
+                ConnectionId = hubConnection.ConnectionId ?? "",
+                DisplayName = displayName,
+                Role = selectedRole
+            });
+
+            // Update URL to include session ID
+            Navigation.NavigateTo($"/collaboration/{sessionId}", forceLoad: false);
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to create session: {ex.Message}";
+            Logger.LogError(ex, "Failed to create session");
+        }
+        finally
+        {
+            isConnecting = false;
+        }
+    }
+
+    private async Task JoinSession()
+    {
+        if (hubConnection == null || string.IsNullOrWhiteSpace(displayName) || string.IsNullOrWhiteSpace(joinSessionId))
+            return;
+
+        try
+        {
+            isConnecting = true;
+            errorMessage = null;
+
+            bool joined = await hubConnection.InvokeAsync<bool>("JoinSession", joinSessionId, displayName, selectedRole);
+
+            if (joined)
+            {
+                sessionId = joinSessionId;
+                Logger.LogInformation("Joined session: SessionId={SessionId}, DisplayName={DisplayName}", sessionId, displayName);
+
+                // Update URL
+                Navigation.NavigateTo($"/collaboration/{sessionId}", forceLoad: false);
+
+                StateHasChanged();
+            }
+            else
+            {
+                errorMessage = "Session not found. Please check the session ID.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to join session: {ex.Message}";
+            Logger.LogError(ex, "Failed to join session");
+        }
+        finally
+        {
+            isConnecting = false;
+        }
+    }
+
+    private async Task LeaveSession()
+    {
+        if (hubConnection == null || sessionId == null)
+            return;
+
+        try
+        {
+            await hubConnection.InvokeAsync("LeaveSession", sessionId);
+            sessionId = null;
+            participants.Clear();
+            comparisonResult = null;
+
+            Navigation.NavigateTo("/collaboration", forceLoad: false);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to leave session");
+        }
+    }
+
+    private async Task CopyShareableUrl()
+    {
+        if (sessionId == null)
+            return;
+
+        var shareableUrl = Navigation.ToAbsoluteUri($"/collaboration/{sessionId}").ToString();
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", shareableUrl);
+
+        Logger.LogInformation("Shareable URL copied: {Url}", shareableUrl);
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        uploadError = null;
+        uploadedFileName = e.File.Name;
+
+        try
+        {
+            // Read file into byte array
+            using var memoryStream = new MemoryStream();
+            await e.File.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024).CopyToAsync(memoryStream);
+            uploadedImageData = memoryStream.ToArray();
+
+            // Convert to data URL for preview
+            uploadedImageDataUrl = $"data:image/png;base64,{Convert.ToBase64String(uploadedImageData)}";
+
+            // Broadcast upload to all participants
+            if (hubConnection != null && sessionId != null && selectedSymbolType.HasValue)
+            {
+                await hubConnection.InvokeAsync("BroadcastUpload", sessionId, uploadedImageData, selectedSymbolType.Value);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            uploadError = $"Failed to upload image: {ex.Message}";
+            Logger.LogError(ex, "Image upload failed");
+        }
+    }
+
+    private void SelectSymbolType(SymbolType symbolType)
+    {
+        selectedSymbolType = symbolType;
+        StateHasChanged();
+    }
+
+    private async Task BroadcastToleranceChange()
+    {
+        if (hubConnection != null && sessionId != null)
+        {
+            await hubConnection.InvokeAsync("BroadcastToleranceChange", sessionId, tolerance);
+        }
+    }
+
+    private async Task CompareSymbol()
+    {
+        if (uploadedImageData == null || !selectedSymbolType.HasValue)
+            return;
+
+        try
+        {
+            isProcessing = true;
+            errorMessage = null;
+
+            // Load image from byte array
+            using var image = Image.Load<L8>(uploadedImageData);
+
+            // Perform comparison
+            comparisonResult = await ComparisonService.CompareSymbolAsync(image, selectedSymbolType.Value, tolerance);
+
+            // Broadcast result to all participants
+            if (hubConnection != null && sessionId != null)
+            {
+                await hubConnection.InvokeAsync("BroadcastComparisonResult", sessionId, comparisonResult);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Comparison failed: {ex.Message}";
+            Logger.LogError(ex, "Comparison failed");
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private bool CanCompare()
+    {
+        return uploadedImageData != null && selectedSymbolType.HasValue && !isProcessing;
+    }
+
+    // SignalR event handlers
+    private Task OnParticipantJoined(SessionParticipant participant)
+    {
+        participants.Add(participant);
+        Logger.LogInformation("Participant joined: {DisplayName}", participant.DisplayName);
+        InvokeAsync(StateHasChanged);
+        return Task.CompletedTask;
+    }
+
+    private Task OnParticipantLeft(string connectionId)
+    {
+        var participant = participants.FirstOrDefault(p => p.ConnectionId == connectionId);
+        if (participant != null)
+        {
+            participants.Remove(participant);
+            Logger.LogInformation("Participant left: {DisplayName}", participant.DisplayName);
+            InvokeAsync(StateHasChanged);
+        }
+        return Task.CompletedTask;
+    }
+
+    private Task OnImageUploaded(byte[] imageData, SymbolType symbolType)
+    {
+        uploadedImageData = imageData;
+        uploadedImageDataUrl = $"data:image/png;base64,{Convert.ToBase64String(imageData)}";
+        selectedSymbolType = symbolType;
+        uploadedFileName = $"Shared upload ({symbolType})";
+
+        Logger.LogInformation("Image uploaded by participant: SymbolType={SymbolType}", symbolType);
+        InvokeAsync(StateHasChanged);
+        return Task.CompletedTask;
+    }
+
+    private Task OnToleranceChanged(double newTolerance)
+    {
+        tolerance = newTolerance;
+        Logger.LogInformation("Tolerance changed by participant: {Tolerance}%", tolerance * 100);
+        InvokeAsync(StateHasChanged);
+        return Task.CompletedTask;
+    }
+
+    private Task OnComparisonCompleted(ComparisonResult result)
+    {
+        comparisonResult = result;
+        Logger.LogInformation("Comparison completed by participant: Similar={Similar}", result.Similar);
+        InvokeAsync(StateHasChanged);
+        return Task.CompletedTask;
+    }
+
+    // Connection lifecycle handlers
+    private Task OnReconnecting(Exception? exception)
+    {
+        connectionStatus = "Reconnecting...";
+        InvokeAsync(StateHasChanged);
+        return Task.CompletedTask;
+    }
+
+    private Task OnReconnected(string? connectionId)
+    {
+        connectionStatus = "Connected";
+        Logger.LogInformation("Reconnected: ConnectionId={ConnectionId}", connectionId);
+        InvokeAsync(StateHasChanged);
+        return Task.CompletedTask;
+    }
+
+    private Task OnConnectionClosed(Exception? exception)
+    {
+        connectionStatus = exception != null ? $"Connection closed: {exception.Message}" : "Connection closed";
+        Logger.LogWarning(exception, "SignalR connection closed");
+        InvokeAsync(StateHasChanged);
+        return Task.CompletedTask;
+    }
+
+    // Helper methods
+    private string GetConnectionStatusClass()
+    {
+        return hubConnection?.State switch
+        {
+            HubConnectionState.Connected => "status-connected",
+            HubConnectionState.Connecting or HubConnectionState.Reconnecting => "status-connecting",
+            HubConnectionState.Disconnected => "status-disconnected",
+            _ => "status-unknown"
+        };
+    }
+
+    private string GetRoleIcon(ParticipantRole role)
+    {
+        return role switch
+        {
+            ParticipantRole.Instructor => "👨‍🏫",
+            ParticipantRole.Student => "🎓",
+            ParticipantRole.Viewer => "👀",
+            _ => "👤"
+        };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection != null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

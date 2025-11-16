@@ -70,8 +70,10 @@ namespace SymbolLabsForge.UI.Web.Services
         /// <param name="symbolTypes">Corresponding symbol types for each image.</param>
         /// <param name="tolerance">Tolerance for comparison (0.0 = exact, 0.01 = 1% difference allowed).</param>
         /// <param name="customConcurrencyLimit">Optional custom concurrency limit (1-8). If null, uses default (4).</param>
+        /// <param name="perSymbolTimeout">Optional per-symbol timeout. If null, uses default (30 seconds).</param>
         /// <param name="cancellationToken">Optional cancellation token to stop batch processing.</param>
         /// <param name="progress">Optional progress reporter (receives count of completed comparisons).</param>
+        /// <param name="metrics">Optional metrics object to populate with performance data.</param>
         /// <returns>Array of batch comparison results, ordered by original index.</returns>
         /// <exception cref="ArgumentException">If arrays have different lengths.</exception>
         /// <exception cref="OperationCanceledException">If cancellation is requested.</exception>
@@ -95,8 +97,10 @@ namespace SymbolLabsForge.UI.Web.Services
             SymbolType[] symbolTypes,
             double tolerance,
             int? customConcurrencyLimit = null,
+            TimeSpan? perSymbolTimeout = null,
             CancellationToken cancellationToken = default,
-            IProgress<int>? progress = null)
+            IProgress<int>? progress = null,
+            BatchProcessingMetrics? metrics = null)
         {
             // Validate inputs
             if (images.Length != symbolTypes.Length)
@@ -109,6 +113,12 @@ namespace SymbolLabsForge.UI.Web.Services
             {
                 return Array.Empty<BatchComparisonResult>();
             }
+
+            // Phase 10.7 Workstream 2: Set default timeout if not provided (30 seconds)
+            TimeSpan timeout = perSymbolTimeout ?? TimeSpan.FromSeconds(30);
+
+            // Phase 10.7 Workstream 2: Initialize metrics if provided
+            string correlationId = metrics?.CorrelationId ?? Guid.NewGuid().ToString("N");
 
             // Phase 10.7: Recreate semaphore with custom concurrency limit if provided
             if (customConcurrencyLimit.HasValue)
@@ -131,12 +141,21 @@ namespace SymbolLabsForge.UI.Web.Services
             }
 
             int currentConcurrency = _semaphore.CurrentCount;
+
+            // Phase 10.7 Workstream 2: Structured logging with correlation ID
             _logger.LogInformation(
-                "Starting batch comparison: {Count} symbols, tolerance: {Tolerance}%, concurrency: {Concurrency}",
-                images.Length, tolerance * 100, currentConcurrency);
+                "Batch comparison started: CorrelationId={CorrelationId}, SymbolCount={Count}, " +
+                "Tolerance={Tolerance}%, Concurrency={Concurrency}, Timeout={Timeout}s",
+                correlationId, images.Length, tolerance * 100, currentConcurrency, timeout.TotalSeconds);
 
             // Thread-safe collection for results (ConcurrentBag allows lock-free adds)
             var results = new ConcurrentBag<(int Index, ComparisonResult Result, SymbolType SymbolType)>();
+
+            // Phase 10.7 Workstream 2: Track timeout and cancellation counts
+            int timedOutCount = 0;
+            int cancelledCount = 0;
+            int failedCount = 0;
+            int completedCount = 0;
 
             // Create tasks for parallel execution
             var tasks = new List<Task>();
@@ -149,19 +168,24 @@ namespace SymbolLabsForge.UI.Web.Services
                     // Phase 10.7: Check cancellation before acquiring semaphore
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Wait for semaphore slot (blocks if 4 comparisons already running)
+                    // Wait for semaphore slot (blocks if N comparisons already running)
                     // Phase 10.7: Pass cancellation token to semaphore wait
                     await _semaphore.WaitAsync(cancellationToken);
+
+                    // Phase 10.7 Workstream 2: Create linked token source with per-symbol timeout
+                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    timeoutCts.CancelAfter(timeout);
 
                     try
                     {
                         // Phase 10.7: Check cancellation after acquiring semaphore
                         cancellationToken.ThrowIfCancellationRequested();
 
-                        _logger.LogDebug("Starting comparison {Index}/{Total}: {SymbolType}",
-                            index + 1, images.Length, symbolTypes[index]);
+                        _logger.LogDebug(
+                            "Symbol comparison: CorrelationId={CorrelationId}, Index={Index}, SymbolType={SymbolType}",
+                            correlationId, index + 1, symbolTypes[index]);
 
-                        // Perform comparison (delegates to ComparisonService)
+                        // Perform comparison with timeout token (delegates to ComparisonService)
                         var result = await _comparisonService.CompareSymbolAsync(
                             images[index],
                             symbolTypes[index],
@@ -169,18 +193,36 @@ namespace SymbolLabsForge.UI.Web.Services
 
                         // Add result to thread-safe collection
                         results.Add((index, result, symbolTypes[index]));
+                        Interlocked.Increment(ref completedCount);
 
                         // Report progress (thread-safe)
                         progress?.Report(results.Count);
 
-                        _logger.LogDebug("Completed comparison {Index}/{Total}: {SymbolType}, similarity: {Similarity}%",
-                            index + 1, images.Length, symbolTypes[index], result.SimilarityPercent);
+                        _logger.LogDebug(
+                            "Symbol completed: CorrelationId={CorrelationId}, Index={Index}, Similarity={Similarity}%",
+                            correlationId, index + 1, result.SimilarityPercent);
+                    }
+                    catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                    {
+                        // Phase 10.7 Workstream 2: Per-symbol timeout (NOT user cancellation)
+                        _logger.LogWarning(
+                            "Symbol timeout: CorrelationId={CorrelationId}, Index={Index}, SymbolType={SymbolType}, Timeout={Timeout}s",
+                            correlationId, index + 1, symbolTypes[index], timeout.TotalSeconds);
+
+                        Interlocked.Increment(ref timedOutCount);
+
+                        // Add timeout result
+                        results.Add((index, ComparisonResult.Failure($"Timed out after {timeout.TotalSeconds}s"), symbolTypes[index]));
+                        progress?.Report(results.Count);
                     }
                     catch (OperationCanceledException)
                     {
                         // Phase 10.7: User cancelled batch
-                        _logger.LogInformation("Comparison cancelled for symbol {Index}: {SymbolType}",
-                            index, symbolTypes[index]);
+                        _logger.LogInformation(
+                            "Symbol cancelled: CorrelationId={CorrelationId}, Index={Index}, SymbolType={SymbolType}",
+                            correlationId, index + 1, symbolTypes[index]);
+
+                        Interlocked.Increment(ref cancelledCount);
 
                         // Add cancelled result
                         results.Add((index, ComparisonResult.Failure("Cancelled by user"), symbolTypes[index]));
@@ -192,8 +234,11 @@ namespace SymbolLabsForge.UI.Web.Services
                     catch (Exception ex)
                     {
                         // Isolate errors: one failure doesn't stop batch
-                        _logger.LogError(ex, "Comparison failed for symbol {Index}: {SymbolType}",
-                            index, symbolTypes[index]);
+                        _logger.LogError(ex,
+                            "Symbol failed: CorrelationId={CorrelationId}, Index={Index}, SymbolType={SymbolType}",
+                            correlationId, index + 1, symbolTypes[index]);
+
+                        Interlocked.Increment(ref failedCount);
 
                         // Add failed result
                         results.Add((index, ComparisonResult.Failure($"Comparison failed: {ex.Message}"), symbolTypes[index]));
@@ -212,8 +257,28 @@ namespace SymbolLabsForge.UI.Web.Services
             // Wait for all comparisons to complete
             await Task.WhenAll(tasks);
 
-            _logger.LogInformation("Batch comparison complete: {Total} symbols processed",
-                results.Count);
+            // Phase 10.7 Workstream 2: Populate metrics if provided
+            if (metrics != null)
+            {
+                metrics.EndTime = DateTime.UtcNow;
+                metrics.CompletedSymbols = completedCount;
+                metrics.FailedSymbols = failedCount;
+                metrics.TimedOutSymbols = timedOutCount;
+                metrics.CancelledSymbols = cancelledCount;
+            }
+
+            // Phase 10.7 Workstream 2: Structured logging with metrics
+            _logger.LogInformation(
+                "Batch comparison complete: CorrelationId={CorrelationId}, Duration={Duration}ms, " +
+                "Throughput={Throughput} symbols/s, Completed={Completed}, Failed={Failed}, " +
+                "TimedOut={TimedOut}, Cancelled={Cancelled}",
+                correlationId,
+                metrics?.Duration.TotalMilliseconds ?? 0,
+                metrics?.ThroughputSymbolsPerSecond ?? 0,
+                completedCount,
+                failedCount,
+                timedOutCount,
+                cancelledCount);
 
             // Order results by original index and convert to BatchComparisonResult
             return results

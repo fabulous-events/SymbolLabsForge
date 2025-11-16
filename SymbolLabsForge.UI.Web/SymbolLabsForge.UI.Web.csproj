@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="QuestPDF" Version="2025.7.4" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="9.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

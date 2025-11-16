@@ -238,6 +238,86 @@ AUDIENCE: Graduate / PhD (parallel processing, batch operations)
                 </div>
             </div>
 
+            @* Phase 10.7 Workstream 2: Performance Metrics *@
+            @if (batchMetrics != null)
+            {
+                <div class="summary-card">
+                    <h3>Performance Metrics (Phase 10.7 Workstream 2)</h3>
+                    <div class="summary-metrics">
+                        <div class="metric">
+                            <label>Processing Time:</label>
+                            <strong>@batchMetrics.Duration.TotalSeconds.ToString("F2")s</strong>
+                        </div>
+                        <div class="metric">
+                            <label>Throughput:</label>
+                            <strong>@batchMetrics.ThroughputSymbolsPerSecond.ToString("F2") symbols/s</strong>
+                        </div>
+                        <div class="metric">
+                            <label>Avg Time/Symbol:</label>
+                            <strong>@batchMetrics.AverageTimePerSymbol.TotalSeconds.ToString("F2")s</strong>
+                        </div>
+                        <div class="metric">
+                            <label>Concurrency Level:</label>
+                            <strong>@batchMetrics.ConcurrencyLevel</strong>
+                        </div>
+                    </div>
+                    <div class="summary-metrics">
+                        <div class="metric">
+                            <label>Completed:</label>
+                            <strong class="text-success">@batchMetrics.CompletedSymbols</strong>
+                        </div>
+                        <div class="metric">
+                            <label>Failed:</label>
+                            <strong class="text-danger">@batchMetrics.FailedSymbols</strong>
+                        </div>
+                        <div class="metric">
+                            <label>Timed Out:</label>
+                            <strong class="text-warning">@batchMetrics.TimedOutSymbols</strong>
+                        </div>
+                        <div class="metric">
+                            <label>Cancelled:</label>
+                            <strong class="text-muted">@batchMetrics.CancelledSymbols</strong>
+                        </div>
+                    </div>
+                    <div class="teaching-moment">
+                        <strong>📊 Performance Analysis (Graduate):</strong>
+                        @if (batchMetrics.ThroughputSymbolsPerSecond < 1.0)
+                        {
+                            <p class="text-warning">
+                                ⚠️ Low throughput (&lt;1 symbol/s). Consider increasing concurrency or optimizing symbol comparison.
+                            </p>
+                        }
+                        else if (batchMetrics.ThroughputSymbolsPerSecond > 3.0)
+                        {
+                            <p class="text-success">
+                                ✅ Excellent throughput (&gt;3 symbols/s). Parallelism is working effectively!
+                            </p>
+                        }
+                        else
+                        {
+                            <p>
+                                Throughput: @batchMetrics.ThroughputSymbolsPerSecond.ToString("F2") symbols/s.
+                                Compare with estimated time to validate concurrency model.
+                            </p>
+                        }
+                        @if (batchMetrics.TimedOutSymbols > 0)
+                        {
+                            <p class="text-warning">
+                                ⚠️ @batchMetrics.TimedOutSymbols symbol(s) timed out (30s limit).
+                                These symbols may be complex or require longer processing.
+                            </p>
+                        }
+                        <p>
+                            <small>
+                                <strong>Bottleneck Identification:</strong>
+                                • If throughput &lt; concurrency level, CPU is bottleneck (increase concurrency)
+                                • If throughput ≈ concurrency level, I/O or algorithm is bottleneck (optimize comparison)
+                            </small>
+                        </p>
+                    </div>
+                </div>
+            }
+
             @* Individual Results *@
             <h3>Individual Comparison Results</h3>
             @foreach (var result in batchResults)
@@ -325,6 +405,9 @@ AUDIENCE: Graduate / PhD (parallel processing, batch operations)
     // Results state
     private BatchComparisonResult[]? batchResults;
     private BatchSummaryStatistics? batchSummary;
+
+    // Phase 10.7 Workstream 2: Performance metrics
+    private BatchProcessingMetrics? batchMetrics;
 
     /// <summary>
     /// Handles multiple file selection and validation.
@@ -432,10 +515,18 @@ AUDIENCE: Graduate / PhD (parallel processing, batch operations)
         completedCount = 0;
         batchResults = null;
         batchSummary = null;
+        batchMetrics = null;
         currentStep = Math.Max(currentStep, 3);
 
         // Phase 10.7: Create cancellation token source
         _batchCancellation = new CancellationTokenSource();
+
+        // Phase 10.7 Workstream 2: Create metrics object
+        batchMetrics = new BatchProcessingMetrics
+        {
+            TotalSymbols = uploadedFiles.Count,
+            ConcurrencyLevel = concurrencyLimit
+        };
 
         try
         {
@@ -464,13 +555,16 @@ AUDIENCE: Graduate / PhD (parallel processing, batch operations)
             });
 
             // Phase 10.7: Invoke batch comparison service with configurable concurrency and cancellation
+            // Phase 10.7 Workstream 2: Pass metrics object and timeout
             batchResults = await BatchService.CompareMultipleAsync(
                 images,
                 symbolTypes,
                 tolerance,
                 customConcurrencyLimit: concurrencyLimit,
+                perSymbolTimeout: TimeSpan.FromSeconds(30), // Default timeout
                 cancellationToken: _batchCancellation.Token,
-                progress: progress);
+                progress: progress,
+                metrics: batchMetrics);
 
             // Calculate summary statistics
             batchSummary = BatchService.CalculateSummaryStatistics(batchResults);
